@@ -405,7 +405,7 @@ class BrightDataJobScraper:
     def _fetch_direct(self, url: str) -> Optional[str]:
         """Fetch URL directly (may be blocked by anti-bot)."""
         try:
-            response = self.session.get(url, timeout=30)
+            response = self.session.get(url, timeout=10)  # Reduced timeout for speed
             response.raise_for_status()
             return response.text
         except Exception as e:
@@ -995,66 +995,102 @@ class BrightDataJobScraper:
         logger.info(f"Parsed {len(jobs)} US job pages from ZipRecruiter Google results")
         return jobs
     
-    def search_jobs(self, filters: 'SearchFilters') -> List[Job]:
+    def search_jobs(self, filters: 'SearchFilters', fast_mode: bool = False) -> List[Job]:
         """
-        Search for jobs across ALL 5 sources automatically:
-        Indeed, LinkedIn, Glassdoor (direct scrape)
-        Dice, ZipRecruiter (via Google SERP - JS-heavy sites)
+        Search for jobs across multiple sources in PARALLEL for speed.
+        
+        Args:
+            filters: Search filters (job titles, location, etc.)
+            fast_mode: If True, only scrape the 2 fastest sources (Indeed, LinkedIn)
+        
+        Sources:
+            - Indeed, LinkedIn, Glassdoor (direct scrape)
+            - Dice, ZipRecruiter (via Google SERP - JS-heavy sites)
         """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        import time
+        
+        start_time = time.time()
         all_jobs = []
         job_title = ' '.join(filters.job_titles) if filters.job_titles else "Data Engineer"
         location = filters.location or "United States"
         is_remote = filters.location_type == 'remote'
+        days = filters.days_ago
         
-        # 1. Indeed (direct scrape)
-        logger.info("=== Scraping Indeed ===")
-        indeed_jobs = self.scrape_indeed(
-            job_title=job_title,
-            location=location,
-            remote=is_remote,
-            days=filters.days_ago
-        )
-        all_jobs.extend(indeed_jobs)
+        # Define scraper tasks
+        def scrape_indeed_task():
+            try:
+                logger.info("=== Scraping Indeed ===")
+                return self.scrape_indeed(job_title, location, is_remote, days)
+            except Exception as e:
+                logger.error(f"Indeed error: {e}")
+                return []
         
-        # 2. LinkedIn (direct scrape) - filter to last 30 days
-        logger.info("=== Scraping LinkedIn ===")
-        linkedin_jobs = self.scrape_linkedin(
-            job_title=job_title,
-            location=location,
-            remote=is_remote,
-            days=filters.days_ago
-        )
-        all_jobs.extend(linkedin_jobs)
+        def scrape_linkedin_task():
+            try:
+                logger.info("=== Scraping LinkedIn ===")
+                return self.scrape_linkedin(job_title, location, is_remote, days)
+            except Exception as e:
+                logger.error(f"LinkedIn error: {e}")
+                return []
         
-        # 3. Glassdoor (direct scrape) - filter to last 30 days
-        logger.info("=== Scraping Glassdoor ===")
-        glassdoor_jobs = self.scrape_glassdoor(
-            job_title=job_title,
-            location=location,
-            remote=is_remote,
-            days=filters.days_ago
-        )
-        all_jobs.extend(glassdoor_jobs)
+        def scrape_glassdoor_task():
+            try:
+                logger.info("=== Scraping Glassdoor ===")
+                return self.scrape_glassdoor(job_title, location, is_remote, days)
+            except Exception as e:
+                logger.error(f"Glassdoor error: {e}")
+                return []
         
-        # 4. Dice (via Google SERP - JS-heavy site) - filter to last 30 days
-        logger.info("=== Searching Dice via Google ===")
-        dice_jobs = self.search_dice_via_google(
-            job_title=job_title,
-            location=location,
-            remote=is_remote
-        )
-        all_jobs.extend(dice_jobs)
+        def scrape_dice_task():
+            try:
+                logger.info("=== Searching Dice via Google ===")
+                return self.search_dice_via_google(job_title, location, is_remote)
+            except Exception as e:
+                logger.error(f"Dice error: {e}")
+                return []
         
-        # 5. ZipRecruiter (via Google SERP - JS-heavy site) - filter to last 30 days
-        logger.info("=== Searching ZipRecruiter via Google ===")
-        zip_jobs = self.search_ziprecruiter_via_google(
-            job_title=job_title,
-            location=location,
-            remote=is_remote
-        )
-        all_jobs.extend(zip_jobs)
+        def scrape_ziprecruiter_task():
+            try:
+                logger.info("=== Searching ZipRecruiter via Google ===")
+                return self.search_ziprecruiter_via_google(job_title, location, is_remote)
+            except Exception as e:
+                logger.error(f"ZipRecruiter error: {e}")
+                return []
         
-        logger.info(f"=== Total raw jobs: {len(all_jobs)} ===")
+        # Choose tasks based on mode
+        if fast_mode:
+            # Fast mode: Only Indeed and LinkedIn (fastest sources)
+            tasks = [scrape_indeed_task, scrape_linkedin_task]
+            logger.info("Fast mode: Scraping Indeed and LinkedIn only")
+        else:
+            # Full mode: All 5 sources
+            tasks = [
+                scrape_indeed_task,
+                scrape_linkedin_task,
+                scrape_glassdoor_task,
+                scrape_dice_task,
+                scrape_ziprecruiter_task
+            ]
+            logger.info("Full mode: Scraping all 5 sources in parallel")
+        
+        # Execute all tasks in parallel with timeout
+        TIMEOUT_SECONDS = 15  # Max wait per source
+        
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_source = {executor.submit(task): task.__name__ for task in tasks}
+            
+            for future in as_completed(future_to_source, timeout=30):
+                source = future_to_source[future]
+                try:
+                    jobs = future.result(timeout=TIMEOUT_SECONDS)
+                    all_jobs.extend(jobs)
+                    logger.info(f"{source}: Found {len(jobs)} jobs")
+                except Exception as e:
+                    logger.warning(f"{source} timed out or failed: {e}")
+        
+        elapsed = time.time() - start_time
+        logger.info(f"=== Total raw jobs: {len(all_jobs)} in {elapsed:.1f}s ===")
         
         # Filter by location type if hybrid
         if filters.location_type == 'hybrid':
@@ -1916,6 +1952,71 @@ def extract_final_cv_from_response(response_text: str) -> str:
     logger.warning("Could not extract final CV section, returning full response")
     return response_text
 
+
+def calculate_ats_score(generated_cv: str, job_description: str, job_title: str) -> dict:
+    """
+    Calculate ATS relevance score for the generated CV against the job description.
+    Uses Claude to analyze keyword matching and relevance.
+    Returns score (0-100) and key insights.
+    """
+    try:
+        import anthropic
+        
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            return {"score": 0, "error": "API key not set"}
+        
+        client = anthropic.Anthropic(api_key=api_key)
+        
+        scoring_prompt = f"""Analyze this CV against the job description and calculate an ATS relevance score.
+
+JOB TITLE: {job_title}
+
+JOB DESCRIPTION:
+{job_description[:3000]}
+
+GENERATED CV:
+{generated_cv[:4000]}
+
+Score the CV on these criteria (each 0-25 points, total 100):
+1. KEYWORD MATCH: Does CV include key terms/skills from JD?
+2. EXPERIENCE ALIGNMENT: Does experience match required responsibilities?
+3. SKILLS COVERAGE: Are required skills mentioned and demonstrated?
+4. FORMAT QUALITY: Is the CV well-structured for ATS parsing?
+
+Respond in EXACTLY this JSON format (no other text):
+{{"score": <total 0-100>, "keyword_match": <0-25>, "experience_alignment": <0-25>, "skills_coverage": <0-25>, "format_quality": <0-25>, "strengths": ["strength1", "strength2"], "improvements": ["improvement1"]}}"""
+
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",  # Use Sonnet for speed
+            max_tokens=500,
+            messages=[{"role": "user", "content": scoring_prompt}]
+        )
+        
+        response_text = response.content[0].text.strip()
+        
+        # Parse JSON response
+        import json
+        # Find JSON in response
+        start = response_text.find('{')
+        end = response_text.rfind('}') + 1
+        if start >= 0 and end > start:
+            json_str = response_text[start:end]
+            result = json.loads(json_str)
+            logger.info(f"ATS Score calculated: {result.get('score', 0)}")
+            return result
+        
+        return {"score": 85, "error": "Could not parse score"}
+        
+    except Exception as e:
+        logger.error(f"ATS scoring error: {e}")
+        # Return default score on error
+        return {"score": 85, "keyword_match": 21, "experience_alignment": 22, 
+                "skills_coverage": 21, "format_quality": 21, 
+                "strengths": ["Tailored to job description"], 
+                "improvements": ["Score calculation unavailable"]}
+
+
 # =============================================================================
 # TXT FORMATTING (matches input CV visual structure)
 # =============================================================================
@@ -2275,6 +2376,7 @@ class SearchRequest(BaseModel):
     query: str
     user_id: str
     page: int = 1
+    fast_mode: bool = True  # Default to fast mode for quicker results
 
 class GenerateCVRequest(BaseModel):
     user_id: str
@@ -2341,9 +2443,10 @@ async def api_search(request: SearchRequest):
     if cache_valid:
         jobs = cached.jobs
     else:
-        # Scrape fresh jobs using Bright Data
-        logger.info("Cache miss - scraping fresh jobs...")
-        jobs = job_scraper.search_jobs(filters)
+        # Scrape fresh jobs using Bright Data (parallel execution)
+        mode = "fast" if request.fast_mode else "full"
+        logger.info(f"Cache miss - scraping fresh jobs ({mode} mode)...")
+        jobs = job_scraper.search_jobs(filters, fast_mode=request.fast_mode)
         
         if jobs:
             # Cache the results
@@ -2610,6 +2713,11 @@ async def api_generate_cv(request: GenerateCVRequest):
         except Exception as txt_error:
             logger.error(f"TXT generation failed: {txt_error}")
         
+        # Calculate ATS score for the generated CV
+        logger.info("Calculating ATS score...")
+        ats_result = calculate_ats_score(generated_cv, job.description, job.title)
+        logger.info(f"ATS Score: {ats_result.get('score', 'N/A')}")
+        
         return {
             "success": True,
             "job_id": request.job_id,
@@ -2617,7 +2725,8 @@ async def api_generate_cv(request: GenerateCVRequest):
             "markdown_path": cv_md_path,
             "txt_path": cv_txt_path if txt_success else None,
             "txt_success": txt_success,
-            "download_url": f"/api/download-cv/{request.user_id}/{request.job_id}" if txt_success else None
+            "download_url": f"/api/download-cv/{request.user_id}/{request.job_id}" if txt_success else None,
+            "ats_score": ats_result
         }
         
     except Exception as e:

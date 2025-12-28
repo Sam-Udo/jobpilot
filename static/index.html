@@ -399,6 +399,13 @@
                 <span class="cv-status" id="cv-status">No CV uploaded</span>
                 <input type="file" id="cv-file" accept=".pdf,.docx,.txt,.md" onchange="uploadCV(this)">
             </div>
+            <div class="mode-row" style="margin-top: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; color: #94a3b8; font-size: 0.85rem;">
+                    <input type="checkbox" id="fast-mode" checked style="width: 16px; height: 16px; accent-color: #6366f1;">
+                    Fast search (Indeed + LinkedIn only)
+                </label>
+                <span style="color: #64748b; font-size: 0.8rem;">| Uncheck for all 5 sites (slower)</span>
+            </div>
         </section>
 
         <section class="results-section hidden" id="results-section">
@@ -501,15 +508,20 @@
                 return;
             }
 
+            const fastMode = document.getElementById('fast-mode').checked;
             currentPage = 1;
-            showLoading('Searching jobs...');
+            
+            const loadingMsg = fastMode 
+                ? 'Searching jobs (fast mode)...' 
+                : 'Searching all 5 sites (this may take 20-30 seconds)...';
+            showLoading(loadingMsg);
             document.getElementById('search-btn').disabled = true;
 
             try {
                 const res = await fetch('/api/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query, user_id: userId, page: currentPage })
+                    body: JSON.stringify({ query, user_id: userId, page: currentPage, fast_mode: fastMode })
                 });
 
                 const data = await res.json();
@@ -703,7 +715,43 @@
                     dlBtn.href = data.download_url;
                     dlBtn.style.display = 'inline-block';
                     
-                    showMessage('CV generated! Click "Download CV" to save.', 'success');
+                    // Display ATS score if available
+                    const atsScore = data.ats_score;
+                    if (atsScore && atsScore.score) {
+                        const scoreColor = atsScore.score >= 90 ? '#22c55e' : 
+                                          atsScore.score >= 75 ? '#eab308' : '#ef4444';
+                        const scoreLabel = atsScore.score >= 90 ? 'Excellent' :
+                                          atsScore.score >= 75 ? 'Good' : 'Needs Improvement';
+                        
+                        // Create ATS score badge
+                        const scoreHtml = `
+                            <div class="ats-score" style="
+                                display: inline-flex;
+                                align-items: center;
+                                gap: 0.5rem;
+                                background: ${scoreColor}20;
+                                border: 1px solid ${scoreColor};
+                                border-radius: 8px;
+                                padding: 0.5rem 0.75rem;
+                                margin-left: 0.5rem;
+                                font-size: 0.85rem;
+                            ">
+                                <span style="font-weight: 700; color: ${scoreColor};">${atsScore.score}%</span>
+                                <span style="color: #94a3b8;">ATS Score</span>
+                                <span style="color: ${scoreColor}; font-size: 0.75rem;">(${scoreLabel})</span>
+                            </div>
+                        `;
+                        
+                        // Insert after download button
+                        dlBtn.insertAdjacentHTML('afterend', scoreHtml);
+                        
+                        // Show detailed breakdown in message
+                        const details = atsScore.strengths ? 
+                            `Strengths: ${atsScore.strengths.slice(0,2).join(', ')}` : '';
+                        showMessage(`CV generated! ATS Score: ${atsScore.score}% (${scoreLabel}). ${details}`, 'success');
+                    } else {
+                        showMessage('CV generated! Click "Download CV" to save.', 'success');
+                    }
                 } else {
                     throw new Error(data.detail || 'Generation failed');
                 }
