@@ -1,0 +1,31 @@
+# JobPilot Dependencies
+# Install with: pip install -r requirements.txt
+
+# Web Framework
+fastapi>=0.104.0
+uvicorn>=0.24.0
+python-multipart>=0.0.6
+
+# Data Validation
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# LLM - Claude (Anthropic)
+anthropic>=0.39.0
+
+# Web Scraping
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+lxml>=4.9.0
+
+# Document Processing
+PyPDF2>=3.0.0
+python-docx>=1.0.0
+fpdf>=1.7.2
+
+# Database (optional)
+sqlalchemy>=2.0.0
+
+# Encryption for credentials
+cryptography>=41.0.0
+

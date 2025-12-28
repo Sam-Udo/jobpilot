@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JobPilot v3</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0f172a;
+            color: #f1f5f9;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            font-size: 0.95rem;
+        }
+
+        /* Search Section */
+        .search-section {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .search-row {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .search-input {
+            flex: 1;
+            padding: 0.875rem 1rem;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            color: #f1f5f9;
+            font-size: 0.95rem;
+            outline: none;
+        }
+
+        .search-input:focus {
+            border-color: #6366f1;
+        }
+
+        .btn {
+            padding: 0.75rem 1.25rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #6366f1;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #4f46e5;
+        }
+
+        .btn-primary:disabled {
+            background: #475569;
+            cursor: not-allowed;
+        }
+
+        .upload-row {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .upload-btn {
+            padding: 0.75rem 1.25rem;
+            background: #334155;
+            border: 1px dashed #475569;
+            border-radius: 8px;
+            color: #94a3b8;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .upload-btn:hover {
+            border-color: #6366f1;
+            color: #f1f5f9;
+        }
+
+        .upload-btn.uploaded {
+            background: #065f46;
+            border-color: #10b981;
+            color: #10b981;
+            border-style: solid;
+        }
+
+        .cv-status {
+            font-size: 0.85rem;
+            color: #94a3b8;
+        }
+
+        .cv-status.ready {
+            color: #10b981;
+        }
+
+        #cv-file { display: none; }
+
+        /* Message Box */
+        .message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .message.error {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+            color: #fca5a5;
+        }
+
+        .message.info {
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid #3b82f6;
+            color: #93c5fd;
+        }
+
+        .message.success {
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid #10b981;
+            color: #6ee7b7;
+        }
+
+        /* Results Section */
+        .results-section {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .results-header h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .results-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .results-count {
+            background: #6366f1;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .filter-tags {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            margin-bottom: 1rem;
+        }
+
+        .filter-tag {
+            background: #334155;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            color: #94a3b8;
+        }
+
+        /* Job Cards */
+        .jobs-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .job-card {
+            background: #0f172a;
+            border-radius: 10px;
+            padding: 1.25rem;
+            border: 1px solid #334155;
+            transition: border-color 0.2s;
+        }
+
+        .job-card:hover {
+            border-color: #6366f1;
+        }
+
+        .job-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.75rem;
+        }
+
+        .job-company {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: #f1f5f9;
+        }
+
+        .job-source {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.5rem;
+            background: #334155;
+            border-radius: 4px;
+            color: #94a3b8;
+            text-transform: uppercase;
+        }
+
+        .job-title {
+            font-size: 0.95rem;
+            color: #94a3b8;
+            margin-bottom: 0.25rem;
+        }
+
+        .job-location {
+            font-size: 0.85rem;
+            color: #64748b;
+            margin-bottom: 1rem;
+        }
+
+        .job-actions {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-generate {
+            background: #6366f1;
+            color: white;
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+        }
+
+        .btn-generate:hover {
+            background: #4f46e5;
+        }
+
+        .btn-generate:disabled {
+            background: #475569;
+        }
+
+        .btn-generate.generating {
+            background: #f59e0b;
+        }
+
+        .btn-download {
+            background: #10b981;
+            color: white;
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            text-decoration: none;
+            display: none;
+        }
+
+        .btn-download.show {
+            display: inline-block;
+        }
+
+        .btn-download:hover {
+            background: #059669;
+        }
+
+        .btn-apply {
+            background: transparent;
+            border: 1px solid #6366f1;
+            color: #6366f1;
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            text-decoration: none;
+        }
+
+        .btn-apply:hover {
+            background: #6366f1;
+            color: white;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 1rem;
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid #334155;
+        }
+
+        .pagination-btn {
+            background: #334155;
+            color: #f1f5f9;
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+            background: #6366f1;
+        }
+
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination-info {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #94a3b8;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #6366f1;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.5rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .hidden { display: none !important; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>JobPilot</h1>
+            <p class="subtitle">Search jobs, generate tailored CVs with AI</p>
+        </header>
+
+        <div id="message-box"></div>
+
+        <section class="search-section">
+            <div class="search-row">
+                <input type="text" class="search-input" id="search-input" 
+                       placeholder="e.g. remote data engineer jobs in Texas">
+                <button class="btn btn-primary" id="search-btn" onclick="searchJobs()">Search</button>
+            </div>
+            <div class="upload-row">
+                <button class="upload-btn" id="upload-btn" onclick="triggerFileUpload()">
+                    Upload CV
+                </button>
+                <span class="cv-status" id="cv-status">No CV uploaded</span>
+                <input type="file" id="cv-file" accept=".pdf,.docx,.txt,.md" onchange="uploadCV(this)">
+            </div>
+        </section>
+
+        <section class="results-section hidden" id="results-section">
+            <div class="results-header">
+                <h2>Search Results</h2>
+                <div class="results-info">
+                    <span class="results-count" id="results-count">0</span>
+                </div>
+            </div>
+            
+            <div class="filter-tags" id="filter-tags"></div>
+            
+            <div class="jobs-list" id="jobs-list"></div>
+            
+            <div class="pagination" id="pagination">
+                <button class="pagination-btn" id="prev-btn" onclick="changePage(-1)">← Previous</button>
+                <span class="pagination-info" id="page-info">Page 1 of 1</span>
+                <button class="pagination-btn" id="next-btn" onclick="changePage(1)">Next →</button>
+            </div>
+        </section>
+
+        <div class="loading hidden" id="loading">
+            <span class="spinner"></span>
+            <span id="loading-text">Searching...</span>
+        </div>
+    </div>
+
+    <script>
+        const userId = 'user_' + Date.now();
+        let cvUploaded = false;
+        let currentPage = 1;
+        let totalPages = 1;
+        let allJobs = [];
+        let currentFilters = {};
+        let generatingJobId = null;
+
+        function showMessage(text, type = 'info') {
+            const box = document.getElementById('message-box');
+            box.innerHTML = `<div class="message ${type}">${text}</div>`;
+            if (type !== 'error') {
+                setTimeout(() => { box.innerHTML = ''; }, 5000);
+            }
+        }
+
+        function showLoading(text = 'Searching...') {
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('loading-text').textContent = text;
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').classList.add('hidden');
+        }
+
+        function triggerFileUpload() {
+            const fileInput = document.getElementById('cv-file');
+            fileInput.value = '';
+            fileInput.click();
+        }
+
+        async function uploadCV(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const uploadBtn = document.getElementById('upload-btn');
+            const cvStatus = document.getElementById('cv-status');
+            uploadBtn.textContent = 'Uploading...';
+            uploadBtn.disabled = true;
+
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('user_id', userId);
+
+            try {
+                const res = await fetch('/api/upload-cv', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                if (data.success) {
+                    cvUploaded = true;
+                    uploadBtn.classList.add('uploaded');
+                    uploadBtn.textContent = '✓ ' + file.name;
+                    cvStatus.textContent = `CV ready (${data.sections_found.length} sections detected)`;
+                    cvStatus.classList.add('ready');
+                    showMessage(`CV uploaded: ${data.sections_found.join(', ')}`, 'success');
+                } else {
+                    uploadBtn.textContent = 'Upload CV';
+                    showMessage('Error: ' + data.error, 'error');
+                }
+            } catch (e) {
+                uploadBtn.textContent = 'Upload CV';
+                showMessage('Upload failed: ' + e.message, 'error');
+            }
+
+            uploadBtn.disabled = false;
+        }
+
+        async function searchJobs() {
+            const query = document.getElementById('search-input').value.trim();
+            if (!query) {
+                showMessage('Please enter a search query', 'error');
+                return;
+            }
+
+            currentPage = 1;
+            showLoading('Searching jobs...');
+            document.getElementById('search-btn').disabled = true;
+
+            try {
+                const res = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, user_id: userId, page: currentPage })
+                });
+
+                const data = await res.json();
+                currentFilters = data.filters || {};
+
+                if (data.needs_scraping) {
+                    // Show URLs that need to be scraped
+                    showMessage(
+                        `No cached results. Need to scrape: ${Object.keys(data.scrape_urls).join(', ')}. ` +
+                        'Use Bright Data MCP to scrape these URLs.',
+                        'info'
+                    );
+                    hideLoading();
+                    document.getElementById('search-btn').disabled = false;
+                    
+                    // For demo, show empty results section with scrape info
+                    displayScrapeInfo(data.scrape_urls);
+                    return;
+                }
+
+                allJobs = data.jobs || [];
+                totalPages = data.total_pages || 1;
+                
+                displayJobs(allJobs);
+                displayFilters(data.filters);
+                
+                if (data.cached) {
+                    showMessage(`Found ${data.total} jobs (cached)`, 'success');
+                } else {
+                    showMessage(`Found ${data.total} jobs`, 'success');
+                }
+            } catch (e) {
+                showMessage('Search failed: ' + e.message, 'error');
+            }
+
+            hideLoading();
+            document.getElementById('search-btn').disabled = false;
+        }
+
+        function displayScrapeInfo(urls) {
+            const section = document.getElementById('results-section');
+            const list = document.getElementById('jobs-list');
+            
+            section.classList.remove('hidden');
+            document.getElementById('results-count').textContent = '0';
+            document.getElementById('pagination').classList.add('hidden');
+            
+            let html = '<div style="padding: 1rem; background: #1e293b; border-radius: 8px;">';
+            html += '<p style="margin-bottom: 1rem; color: #94a3b8;">No cached results. Use Bright Data MCP to scrape:</p>';
+            
+            for (const [source, sourceUrls] of Object.entries(urls)) {
+                html += `<div style="margin-bottom: 0.5rem;">`;
+                html += `<strong style="color: #6366f1; text-transform: capitalize;">${source}:</strong>`;
+                for (const url of sourceUrls) {
+                    html += `<div style="font-size: 0.8rem; color: #64748b; word-break: break-all; margin-left: 1rem;">${url}</div>`;
+                }
+                html += `</div>`;
+            }
+            
+            html += '</div>';
+            list.innerHTML = html;
+        }
+
+        function displayFilters(filters) {
+            const container = document.getElementById('filter-tags');
+            if (!filters) {
+                container.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+            if (filters.job_titles && filters.job_titles.length) {
+                html += `<span class="filter-tag">Job: ${filters.job_titles.join(', ')}</span>`;
+            }
+            if (filters.location_type && filters.location_type !== 'any') {
+                html += `<span class="filter-tag">Type: ${filters.location_type}</span>`;
+            }
+            if (filters.location) {
+                html += `<span class="filter-tag">Location: ${filters.location}</span>`;
+            }
+            container.innerHTML = html;
+        }
+
+        function displayJobs(jobs) {
+            const section = document.getElementById('results-section');
+            const list = document.getElementById('jobs-list');
+            const count = document.getElementById('results-count');
+            const pagination = document.getElementById('pagination');
+
+            section.classList.remove('hidden');
+            count.textContent = jobs.length;
+
+            if (jobs.length === 0) {
+                list.innerHTML = '<p style="text-align: center; color: #94a3b8; padding: 2rem;">No jobs found</p>';
+                pagination.classList.add('hidden');
+                return;
+            }
+
+            list.innerHTML = jobs.map(job => `
+                <div class="job-card" id="card-${job.id}">
+                    <div class="job-card-header">
+                        <span class="job-company">${job.company}</span>
+                        <span class="job-source">${job.source}</span>
+                    </div>
+                    <div class="job-title">${job.title}</div>
+                    <div class="job-location">${job.location}</div>
+                    <div class="job-actions">
+                        <button class="btn btn-generate" id="gen-${job.id}" onclick="generateCV('${job.id}')">
+                            Generate CV
+                        </button>
+                        <a href="#" class="btn btn-download" id="dl-${job.id}" style="display: none;">
+                            Download CV
+                        </a>
+                        <a href="${job.url}" target="_blank" rel="noopener" class="btn btn-apply">
+                            Apply ↗
+                        </a>
+                    </div>
+                </div>
+            `).join('');
+
+            // Update pagination
+            pagination.classList.remove('hidden');
+            updatePagination();
+        }
+
+        function updatePagination() {
+            document.getElementById('page-info').textContent = `Page ${currentPage} of ${totalPages}`;
+            document.getElementById('prev-btn').disabled = currentPage <= 1;
+            document.getElementById('next-btn').disabled = currentPage >= totalPages;
+        }
+
+        async function changePage(delta) {
+            const newPage = currentPage + delta;
+            if (newPage < 1 || newPage > totalPages) return;
+
+            currentPage = newPage;
+            showLoading('Loading page...');
+
+            try {
+                const query = document.getElementById('search-input').value.trim();
+                const res = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query, user_id: userId, page: currentPage })
+                });
+
+                const data = await res.json();
+                allJobs = data.jobs || [];
+                totalPages = data.total_pages || 1;
+                displayJobs(allJobs);
+            } catch (e) {
+                showMessage('Failed to load page: ' + e.message, 'error');
+            }
+
+            hideLoading();
+        }
+
+        async function generateCV(jobId) {
+            if (!cvUploaded) {
+                showMessage('Please upload your CV first', 'error');
+                return;
+            }
+
+            if (generatingJobId) {
+                showMessage('Please wait for the current CV to finish generating', 'error');
+                return;
+            }
+
+            generatingJobId = jobId;
+            const genBtn = document.getElementById(`gen-${jobId}`);
+            const dlBtn = document.getElementById(`dl-${jobId}`);
+
+            genBtn.textContent = 'Generating...';
+            genBtn.classList.add('generating');
+            genBtn.disabled = true;
+
+            try {
+                const res = await fetch('/api/generate-cv', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, job_id: jobId })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    genBtn.textContent = '✓ Generated';
+                    genBtn.classList.remove('generating');
+                    
+                    // Show download button
+                    dlBtn.href = data.download_url;
+                    dlBtn.style.display = 'inline-block';
+                    
+                    showMessage('CV generated! Click "Download CV" to save.', 'success');
+                } else {
+                    throw new Error(data.detail || 'Generation failed');
+                }
+            } catch (e) {
+                genBtn.textContent = 'Generate CV';
+                genBtn.classList.remove('generating');
+                showMessage('CV generation failed: ' + e.message, 'error');
+            }
+
+            genBtn.disabled = false;
+            generatingJobId = null;
+        }
+
+        // Enter key to search
+        document.getElementById('search-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') searchJobs();
+        });
+    </script>
+</body>
+</html>
+

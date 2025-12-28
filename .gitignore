@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+.venv/
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Data files (generated at runtime)
+data/cache/*
+data/cv_*.md
+data/cv_*.txt
+data/cv_*.pdf
+data/test_*.pdf
+data/test_*.txt
+data/user_cv.txt
+data/user_cvs/*
+data/generated_cvs/*
+data/approved_cvs/*
+data/job_descriptions/*
+data/*.json
+
+# Keep data directory structure
+!data/.gitkeep
+!data/cache/.gitkeep
+!data/user_cvs/.gitkeep
+!data/generated_cvs/.gitkeep
+!data/approved_cvs/.gitkeep
+!data/job_descriptions/.gitkeep
+
+# Credentials (never commit)
+google_credentials.json
+*.pem
+*.key
+
+# Test outputs
+test_output.*
+
