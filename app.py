@@ -527,8 +527,9 @@ class BrightDataJobScraper:
         query = quote_plus(job_title)
         loc = quote_plus(location)
         
-        # Scrape 3 pages (each page has ~15-20 jobs)
-        for page in range(3):
+        # Scrape 1 page only for reliability (page 2+ often times out)
+        # Each page has ~15-20 jobs
+        for page in range(1):
             start = page * 10
             url = f"https://www.indeed.com/jobs?q={query}&l={loc}&fromage={days}&start={start}"
             if remote:
@@ -629,8 +630,8 @@ class BrightDataJobScraper:
         # LinkedIn time filter: r2592000 = past month (30 days), r604800 = past week
         time_filter = "r2592000" if days >= 30 else f"r{days * 86400}"
         
-        # Scrape 3 pages (each page has ~25 jobs)
-        for page in range(3):
+        # Scrape 2 pages for speed (each page has ~25 jobs)
+        for page in range(2):
             start = page * 25
             url = f"https://www.linkedin.com/jobs/search/?keywords={query}&location={loc}&start={start}&f_TPR={time_filter}"
             if remote:
@@ -1076,18 +1077,32 @@ class BrightDataJobScraper:
         
         # Execute all tasks in parallel with timeout
         TIMEOUT_SECONDS = 15  # Max wait per source
+        OVERALL_TIMEOUT = 45  # Total max wait time
         
         with ThreadPoolExecutor(max_workers=5) as executor:
             future_to_source = {executor.submit(task): task.__name__ for task in tasks}
             
-            for future in as_completed(future_to_source, timeout=30):
-                source = future_to_source[future]
-                try:
-                    jobs = future.result(timeout=TIMEOUT_SECONDS)
-                    all_jobs.extend(jobs)
-                    logger.info(f"{source}: Found {len(jobs)} jobs")
-                except Exception as e:
-                    logger.warning(f"{source} timed out or failed: {e}")
+            try:
+                for future in as_completed(future_to_source, timeout=OVERALL_TIMEOUT):
+                    source = future_to_source[future]
+                    try:
+                        jobs = future.result(timeout=TIMEOUT_SECONDS)
+                        all_jobs.extend(jobs)
+                        logger.info(f"{source}: Found {len(jobs)} jobs")
+                    except Exception as e:
+                        logger.warning(f"{source} failed: {e}")
+            except TimeoutError as te:
+                # Some futures didn't complete in time - that's OK, use what we have
+                logger.warning(f"Some scrapers timed out: {te}. Returning partial results.")
+                # Collect any completed futures we might have missed
+                for future, source in future_to_source.items():
+                    if future.done() and not future.exception():
+                        try:
+                            jobs = future.result(timeout=0)
+                            if jobs and source not in [f.__name__ for f in future_to_source]:
+                                all_jobs.extend(jobs)
+                        except:
+                            pass
         
         elapsed = time.time() - start_time
         logger.info(f"=== Total raw jobs: {len(all_jobs)} in {elapsed:.1f}s ===")
