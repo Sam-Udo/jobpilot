@@ -1,0 +1,15 @@
+# Render deployment configuration
+services:
+  - type: web
+    name: jobpilot
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: BRIGHT_DATA_API_KEY
+        sync: false
+      - key: BRIGHT_DATA_ZONE
+        value: mcp_unlocker
+
