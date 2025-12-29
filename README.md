@@ -1,11 +1,23 @@
-# JobPilot - AI-Powered Job Application Platform
+# JobPilot UK - AI-Powered Job Application Platform
 
-JobPilot is an intelligent job search and CV optimization platform that uses Claude AI to generate tailored CVs for specific job applications.
+JobPilot UK is an intelligent job search and CV optimization platform that uses Claude AI to generate tailored CVs for UK job applications.
+
+## Version
+
+**v2-uk** - UK-focused job search with UK-specific job sites
 
 ## Features
 
-- **Smart Job Search**: Search across 5 major job sites (Indeed, LinkedIn, Glassdoor, Dice, ZipRecruiter)
-- **Natural Language Queries**: Search using plain English (e.g., "remote data engineer jobs in Texas")
+- **Smart UK Job Search**: Search across 7 major UK job sites:
+  - Indeed UK (uk.indeed.com)
+  - LinkedIn
+  - Glassdoor UK (glassdoor.co.uk)
+  - Reed (reed.co.uk)
+  - CV-Library (cv-library.co.uk)
+  - TotalJobs (totaljobs.com)
+  - Jobserve (jobserve.com)
+- **Natural Language Queries**: Search using plain English (e.g., "remote data engineer jobs in London")
+- **All UK Locations**: Supports all UK cities, regions, and Crown Dependencies (Isle of Man, Jersey, Guernsey)
 - **AI-Powered CV Generation**: Uses Claude Opus with the Master CV Optimisation Mega-Prompt v3.0
 - **Company Constraint Compliance**: Automatically applies Meta/Amazon/Google vocabulary constraints
 - **30-Day Filter**: Only shows jobs posted in the last 30 days

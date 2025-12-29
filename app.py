@@ -164,7 +164,7 @@ cv_analyzer = CVFormatAnalyzer()
 # =============================================================================
 
 class IntentParser:
-    """Parse natural language to extract job search intent."""
+    """Parse natural language to extract job search intent for UK jobs."""
     
     LOCATION_TYPES = {
         'remote': ['remote', 'work from home', 'wfh', 'fully remote'],
@@ -172,56 +172,104 @@ class IntentParser:
         'onsite': ['onsite', 'on-site', 'in office', 'on site']
     }
     
-    US_STATES = {
-        'alabama': 'Alabama', 'alaska': 'Alaska', 'arizona': 'Arizona',
-        'arkansas': 'Arkansas', 'california': 'California', 'colorado': 'Colorado',
-        'connecticut': 'Connecticut', 'delaware': 'Delaware', 'florida': 'Florida',
-        'georgia': 'Georgia', 'hawaii': 'Hawaii', 'idaho': 'Idaho',
-        'illinois': 'Illinois', 'indiana': 'Indiana', 'iowa': 'Iowa',
-        'kansas': 'Kansas', 'kentucky': 'Kentucky', 'louisiana': 'Louisiana',
-        'maine': 'Maine', 'maryland': 'Maryland', 'massachusetts': 'Massachusetts',
-        'michigan': 'Michigan', 'minnesota': 'Minnesota', 'mississippi': 'Mississippi',
-        'missouri': 'Missouri', 'montana': 'Montana', 'nebraska': 'Nebraska',
-        'nevada': 'Nevada', 'new hampshire': 'New Hampshire', 'new jersey': 'New Jersey',
-        'new mexico': 'New Mexico', 'new york': 'New York', 'north carolina': 'North Carolina',
-        'north dakota': 'North Dakota', 'ohio': 'Ohio', 'oklahoma': 'Oklahoma',
-        'oregon': 'Oregon', 'pennsylvania': 'Pennsylvania', 'rhode island': 'Rhode Island',
-        'south carolina': 'South Carolina', 'south dakota': 'South Dakota',
-        'tennessee': 'Tennessee', 'texas': 'Texas', 'utah': 'Utah',
-        'vermont': 'Vermont', 'virginia': 'Virginia', 'washington': 'Washington',
-        'west virginia': 'West Virginia', 'wisconsin': 'Wisconsin', 'wyoming': 'Wyoming'
+    # UK Cities, Regions, and Areas (comprehensive list)
+    UK_LOCATIONS = {
+        # England - Major Cities
+        'london': 'London', 'greater london': 'London',
+        'manchester': 'Manchester', 'greater manchester': 'Manchester',
+        'birmingham': 'Birmingham', 'west midlands': 'Birmingham',
+        'leeds': 'Leeds', 'bradford': 'Bradford',
+        'liverpool': 'Liverpool', 'merseyside': 'Liverpool',
+        'newcastle': 'Newcastle', 'newcastle upon tyne': 'Newcastle',
+        'sheffield': 'Sheffield', 'south yorkshire': 'Sheffield',
+        'bristol': 'Bristol', 'nottingham': 'Nottingham',
+        'leicester': 'Leicester', 'coventry': 'Coventry',
+        'hull': 'Hull', 'kingston upon hull': 'Hull',
+        'stoke': 'Stoke-on-Trent', 'stoke on trent': 'Stoke-on-Trent',
+        'wolverhampton': 'Wolverhampton', 'derby': 'Derby',
+        'southampton': 'Southampton', 'portsmouth': 'Portsmouth',
+        'plymouth': 'Plymouth', 'reading': 'Reading',
+        'luton': 'Luton', 'bolton': 'Bolton',
+        'bournemouth': 'Bournemouth', 'middlesbrough': 'Middlesbrough',
+        'sunderland': 'Sunderland', 'brighton': 'Brighton',
+        'peterborough': 'Peterborough', 'stockport': 'Stockport',
+        'slough': 'Slough', 'swindon': 'Swindon',
+        'oxford': 'Oxford', 'cambridge': 'Cambridge',
+        'york': 'York', 'norwich': 'Norwich',
+        'exeter': 'Exeter', 'gloucester': 'Gloucester',
+        'ipswich': 'Ipswich', 'cheltenham': 'Cheltenham',
+        'bath': 'Bath', 'chester': 'Chester',
+        'canterbury': 'Canterbury', 'winchester': 'Winchester',
+        'milton keynes': 'Milton Keynes', 'watford': 'Watford',
+        'woking': 'Woking', 'guildford': 'Guildford',
+        'croydon': 'Croydon', 'harrow': 'Harrow',
+        'enfield': 'Enfield', 'ealing': 'Ealing',
+        # Scotland
+        'glasgow': 'Glasgow', 'edinburgh': 'Edinburgh',
+        'aberdeen': 'Aberdeen', 'dundee': 'Dundee',
+        'inverness': 'Inverness', 'stirling': 'Stirling',
+        'perth': 'Perth', 'scotland': 'Scotland',
+        # Wales
+        'cardiff': 'Cardiff', 'swansea': 'Swansea',
+        'newport': 'Newport', 'wrexham': 'Wrexham',
+        'wales': 'Wales',
+        # Northern Ireland
+        'belfast': 'Belfast', 'derry': 'Derry',
+        'londonderry': 'Londonderry', 'northern ireland': 'Northern Ireland',
+        # Crown Dependencies
+        'isle of man': 'Isle of Man', 'douglas': 'Isle of Man',
+        'jersey': 'Jersey', 'guernsey': 'Guernsey',
+        'channel islands': 'Channel Islands',
+        # Regions
+        'east midlands': 'East Midlands', 'west midlands': 'West Midlands',
+        'east anglia': 'East Anglia', 'south east': 'South East',
+        'south west': 'South West', 'north east': 'North East',
+        'north west': 'North West', 'yorkshire': 'Yorkshire',
+        'home counties': 'Home Counties', 'midlands': 'Midlands',
+        # Countries
+        'england': 'England', 'united kingdom': 'United Kingdom',
+        'uk': 'United Kingdom', 'britain': 'United Kingdom',
+        'great britain': 'United Kingdom',
     }
 
     def parse(self, text: str) -> SearchFilters:
-        """Parse natural language to search filters."""
+        """Parse natural language to search filters for UK jobs."""
         text_lower = text.lower()
         filters = SearchFilters()
         
+        # Detect location type (remote/hybrid/onsite)
         for loc_type, keywords in self.LOCATION_TYPES.items():
             if any(kw in text_lower for kw in keywords):
                 filters.location_type = loc_type
                 break
         
-        for state_name, state_display in self.US_STATES.items():
-            if state_name in text_lower:
-                filters.location = state_display
+        # Detect UK location
+        for loc_name, loc_display in self.UK_LOCATIONS.items():
+            if loc_name in text_lower:
+                filters.location = loc_display
                 break
         
+        # Default to UK if no location specified
+        if not filters.location:
+            filters.location = "United Kingdom"
+        
+        # Clean text to extract job title
         clean_text = text_lower
         for keywords in self.LOCATION_TYPES.values():
             for kw in keywords:
                 clean_text = clean_text.replace(kw, '')
-        for state_name in self.US_STATES.keys():
-            clean_text = clean_text.replace(state_name, '')
+        for loc_name in self.UK_LOCATIONS.keys():
+            clean_text = clean_text.replace(loc_name, '')
         
         skip_words = ['i', 'need', 'find', 'want', 'looking', 'for', 'jobs', 'job',
-                      'in', 'at', 'a', 'an', 'the', 'roles', 'role', 'positions']
+                      'in', 'at', 'a', 'an', 'the', 'roles', 'role', 'positions', 'uk']
         words = clean_text.split()
         title_words = [w for w in words if w not in skip_words and len(w) > 2]
         
         if title_words:
             filters.job_titles = [' '.join(title_words).title()]
         
+        # Detect days ago filter
         days_match = re.search(r'(\d+)\s*days?', text_lower)
         if days_match:
             filters.days_ago = int(days_match.group(1))
@@ -520,22 +568,22 @@ class BrightDataJobScraper:
         return self.parse_google_results_ziprecruiter(results, is_remote=remote)
     
     def scrape_indeed(self, job_title: str, location: str, remote: bool = False, days: int = 30) -> List[Job]:
-        """Scrape Indeed for jobs - multiple pages using the exact job title from NLU."""
+        """Scrape Indeed UK for jobs - using the exact job title from NLU."""
         all_jobs = []
         
         # Use exact job title from user's search (via NLU)
         query = quote_plus(job_title)
         loc = quote_plus(location)
         
-        # Scrape 1 page only for reliability (page 2+ often times out)
-        # Each page has ~15-20 jobs
+        # Scrape 1 page only for reliability
         for page in range(1):
             start = page * 10
-            url = f"https://www.indeed.com/jobs?q={query}&l={loc}&fromage={days}&start={start}"
+            # Use UK Indeed domain
+            url = f"https://uk.indeed.com/jobs?q={query}&l={loc}&fromage={days}&start={start}"
             if remote:
                 url += "&remotejob=1"
             
-            logger.info(f"Scraping Indeed '{job_title}' page {page+1}")
+            logger.info(f"Scraping Indeed UK '{job_title}' page {page+1}")
             
             html = self._fetch_via_brightdata(url)
             if not html:
@@ -797,31 +845,42 @@ class BrightDataJobScraper:
         return jobs
     
     def scrape_glassdoor(self, job_title: str, location: str, remote: bool = False, days: int = 30) -> List[Job]:
-        """Scrape Glassdoor for jobs in US locations - filtered to last 30 days."""
+        """Scrape Glassdoor UK for jobs - filtered to last 30 days."""
         jobs = []
         
         query = quote_plus(job_title)
         
-        # Map common US states to Glassdoor location IDs
-        # Texas = 1347765, California = 1347242, New York = 1132348
-        state_ids = {
-            'texas': '1347765', 'tx': '1347765',
-            'california': '1347242', 'ca': '1347242',
-            'new york': '1132348', 'ny': '1132348',
-            'florida': '1347241', 'fl': '1347241',
-            'washington': '1347268', 'wa': '1347268',
+        # Map UK cities/regions to Glassdoor location IDs
+        uk_location_ids = {
+            'london': '2671300', 'greater london': '2671300',
+            'manchester': '2652467', 'greater manchester': '2652467',
+            'birmingham': '2655603', 'west midlands': '2655603',
+            'leeds': '2644688', 'yorkshire': '2644688',
+            'glasgow': '2648579', 'scotland': '2648576',
+            'edinburgh': '2650272',
+            'bristol': '2654675',
+            'liverpool': '2644210',
+            'newcastle': '2641673',
+            'sheffield': '2638077',
+            'nottingham': '2641170',
+            'cardiff': '2653822', 'wales': '2653822',
+            'belfast': '2655984', 'northern ireland': '2655984',
+            'cambridge': '2653941',
+            'oxford': '2640729',
+            'reading': '2639577',
+            'isle of man': '2633218',
+            'united kingdom': '2635167', 'uk': '2635167',
         }
         
         loc_lower = location.lower()
-        loc_id = state_ids.get(loc_lower, '1')  # Default to US (1)
+        loc_id = uk_location_ids.get(loc_lower, '2635167')  # Default to UK (2635167)
         
-        # Build URL - locT=S means State, locId is the state ID
-        # fromAge=30 means posted in last 30 days
-        url = f"https://www.glassdoor.com/Job/jobs.htm?sc.keyword={query}&locT=S&locId={loc_id}&fromAge={days}"
+        # Use Glassdoor UK domain
+        url = f"https://www.glassdoor.co.uk/Job/jobs.htm?sc.keyword={query}&locT=C&locId={loc_id}&fromAge={days}"
         if remote:
             url += "&remoteWorkType=1"  # 1 = Remote
         
-        logger.info(f"Scraping Glassdoor: {url}")
+        logger.info(f"Scraping Glassdoor UK: {url}")
         
         html = self._fetch_via_brightdata(url)
         if not html:
@@ -886,14 +945,14 @@ class BrightDataJobScraper:
                     
                     loc_lower = location.lower()
                     
-                    # Skip non-US jobs (UK, EU, etc)
-                    non_us_indicators = ['uk', 'united kingdom', 'london', 'england', 'germany', 'france', 'india', 'kaiserslautern']
-                    is_non_us = any(ind in loc_lower for ind in non_us_indicators)
-                    if is_non_us:
-                        logger.debug(f"Skipping non-US Glassdoor job: {location}")
+                    # Skip non-UK jobs (US, EU, etc) - keep UK jobs only
+                    non_uk_indicators = ['united states', 'usa', 'germany', 'france', 'india', 'kaiserslautern', 'california', 'texas', 'new york']
+                    is_non_uk = any(ind in loc_lower for ind in non_uk_indicators)
+                    if is_non_uk:
+                        logger.debug(f"Skipping non-UK Glassdoor job: {location}")
                         continue
                     
-                    # Filter by search location if specified
+                    # Filter by search location if specified (UK locations)
                     if acceptable_locations:
                         matches_location = any(loc in loc_lower for loc in acceptable_locations)
                         if not matches_location:
@@ -903,10 +962,10 @@ class BrightDataJobScraper:
                     link = card.find('a', href=True)
                     job_url = link['href'] if link else source_url
                     if job_url.startswith('/'):
-                        job_url = f"https://www.glassdoor.com{job_url}"
+                        job_url = f"https://www.glassdoor.co.uk{job_url}"
                     
-                    # Skip non-US Glassdoor domains
-                    if 'glassdoor.co.uk' in job_url or 'glassdoor.de' in job_url:
+                    # Skip non-UK Glassdoor domains (keep UK only)
+                    if 'glassdoor.com' in job_url and 'glassdoor.co.uk' not in job_url:
                         continue
                     
                     jobs.append(Job(
@@ -996,17 +1055,301 @@ class BrightDataJobScraper:
         logger.info(f"Parsed {len(jobs)} US job pages from ZipRecruiter Google results")
         return jobs
     
+    # =========================================================================
+    # UK JOB SITE SCRAPERS
+    # =========================================================================
+    
+    def scrape_reed(self, job_title: str, location: str, remote: bool = False, days: int = 30) -> List[Job]:
+        """Scrape Reed.co.uk for UK jobs."""
+        jobs = []
+        
+        query = quote_plus(job_title)
+        loc = quote_plus(location) if location and location.lower() != 'united kingdom' else ''
+        
+        # Reed URL structure
+        url = f"https://www.reed.co.uk/jobs/{query.lower().replace('+', '-')}-jobs"
+        if loc:
+            url += f"-in-{loc.lower().replace('+', '-')}"
+        url += f"?datecreatedoffset=LastMonth"
+        if remote:
+            url += "&remote=true"
+        
+        logger.info(f"Scraping Reed: {url}")
+        
+        html = self._fetch_via_brightdata(url)
+        if not html:
+            html = self._fetch_direct(url)
+        
+        if html:
+            jobs = self._parse_reed_html(html, url)
+            logger.info(f"Scraped {len(jobs)} jobs from Reed")
+        
+        return jobs
+    
+    def _parse_reed_html(self, html: str, source_url: str) -> List[Job]:
+        """Parse Reed.co.uk HTML."""
+        jobs = []
+        try:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            job_cards = soup.find_all('article', class_=re.compile(r'job-card|job-result'))
+            if not job_cards:
+                job_cards = soup.find_all('div', class_=re.compile(r'job-card'))
+            
+            for i, card in enumerate(job_cards[:20]):
+                try:
+                    title_elem = card.find(['h2', 'h3', 'a'], class_=re.compile(r'job-title|title'))
+                    company_elem = card.find(['span', 'div', 'a'], class_=re.compile(r'company|posted-by'))
+                    location_elem = card.find(['span', 'li'], class_=re.compile(r'location'))
+                    salary_elem = card.find(['span', 'li'], class_=re.compile(r'salary'))
+                    
+                    if not title_elem:
+                        continue
+                    
+                    title = title_elem.get_text(strip=True)
+                    company = company_elem.get_text(strip=True) if company_elem else "See Reed"
+                    location = location_elem.get_text(strip=True) if location_elem else "UK"
+                    salary = salary_elem.get_text(strip=True) if salary_elem else ""
+                    
+                    link = card.find('a', href=True)
+                    job_url = link['href'] if link else source_url
+                    if job_url.startswith('/'):
+                        job_url = f"https://www.reed.co.uk{job_url}"
+                    
+                    if title and len(title) > 3:
+                        jobs.append(Job(
+                            id=f"reed_{i+1}",
+                            company=company,
+                            title=title,
+                            location=location,
+                            description="",
+                            url=job_url,
+                            source="reed",
+                            salary=salary
+                        ))
+                except:
+                    continue
+        except Exception as e:
+            logger.error(f"Reed parsing error: {e}")
+        
+        return jobs
+    
+    def scrape_cvlibrary(self, job_title: str, location: str, remote: bool = False, days: int = 30) -> List[Job]:
+        """Scrape CV-Library for UK jobs."""
+        jobs = []
+        
+        query = quote_plus(job_title)
+        loc = quote_plus(location) if location and location.lower() != 'united kingdom' else ''
+        
+        # CV-Library URL structure
+        url = f"https://www.cv-library.co.uk/search-jobs?q={query}"
+        if loc:
+            url += f"&geo={loc}"
+        url += "&posted=30"  # Last 30 days
+        if remote:
+            url += "&remotejob=1"
+        
+        logger.info(f"Scraping CV-Library: {url}")
+        
+        html = self._fetch_via_brightdata(url)
+        if not html:
+            html = self._fetch_direct(url)
+        
+        if html:
+            jobs = self._parse_cvlibrary_html(html, url)
+            logger.info(f"Scraped {len(jobs)} jobs from CV-Library")
+        
+        return jobs
+    
+    def _parse_cvlibrary_html(self, html: str, source_url: str) -> List[Job]:
+        """Parse CV-Library HTML."""
+        jobs = []
+        try:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            job_cards = soup.find_all('article', class_=re.compile(r'job-card|search-result'))
+            if not job_cards:
+                job_cards = soup.find_all('li', class_=re.compile(r'search-result'))
+            
+            for i, card in enumerate(job_cards[:20]):
+                try:
+                    title_elem = card.find(['h2', 'a'], class_=re.compile(r'job-title|title'))
+                    company_elem = card.find(['span', 'a'], class_=re.compile(r'company'))
+                    location_elem = card.find(['span', 'div'], class_=re.compile(r'location'))
+                    salary_elem = card.find(['span', 'div'], class_=re.compile(r'salary'))
+                    
+                    if not title_elem:
+                        continue
+                    
+                    title = title_elem.get_text(strip=True)
+                    company = company_elem.get_text(strip=True) if company_elem else "See CV-Library"
+                    location = location_elem.get_text(strip=True) if location_elem else "UK"
+                    salary = salary_elem.get_text(strip=True) if salary_elem else ""
+                    
+                    link = card.find('a', href=True)
+                    job_url = link['href'] if link else source_url
+                    if job_url.startswith('/'):
+                        job_url = f"https://www.cv-library.co.uk{job_url}"
+                    
+                    if title and len(title) > 3:
+                        jobs.append(Job(
+                            id=f"cvlibrary_{i+1}",
+                            company=company,
+                            title=title,
+                            location=location,
+                            description="",
+                            url=job_url,
+                            source="cv-library",
+                            salary=salary
+                        ))
+                except:
+                    continue
+        except Exception as e:
+            logger.error(f"CV-Library parsing error: {e}")
+        
+        return jobs
+    
+    def scrape_totaljobs(self, job_title: str, location: str, remote: bool = False, days: int = 30) -> List[Job]:
+        """Scrape TotalJobs for UK jobs."""
+        jobs = []
+        
+        query = quote_plus(job_title)
+        loc = quote_plus(location) if location and location.lower() != 'united kingdom' else ''
+        
+        # TotalJobs URL structure
+        url = f"https://www.totaljobs.com/jobs/{query.lower().replace('+', '-')}"
+        if loc:
+            url += f"/in-{loc.lower().replace('+', '-')}"
+        url += f"?postedWithin=30"
+        if remote:
+            url += "&worktype=remote"
+        
+        logger.info(f"Scraping TotalJobs: {url}")
+        
+        html = self._fetch_via_brightdata(url)
+        if not html:
+            html = self._fetch_direct(url)
+        
+        if html:
+            jobs = self._parse_totaljobs_html(html, url)
+            logger.info(f"Scraped {len(jobs)} jobs from TotalJobs")
+        
+        return jobs
+    
+    def _parse_totaljobs_html(self, html: str, source_url: str) -> List[Job]:
+        """Parse TotalJobs HTML."""
+        jobs = []
+        try:
+            from bs4 import BeautifulSoup
+            soup = BeautifulSoup(html, 'html.parser')
+            
+            job_cards = soup.find_all('article', class_=re.compile(r'job|result'))
+            if not job_cards:
+                job_cards = soup.find_all('div', {'data-at': re.compile(r'job')})
+            
+            for i, card in enumerate(job_cards[:20]):
+                try:
+                    title_elem = card.find(['h2', 'a'], {'data-at': 'job-item-title'}) or card.find(['h2', 'a'], class_=re.compile(r'title'))
+                    company_elem = card.find(['span', 'a'], {'data-at': 'job-item-company-name'}) or card.find(['span', 'a'], class_=re.compile(r'company'))
+                    location_elem = card.find(['span', 'div'], {'data-at': 'job-item-location'}) or card.find(['span', 'div'], class_=re.compile(r'location'))
+                    salary_elem = card.find(['span', 'div'], {'data-at': 'job-item-salary-info'}) or card.find(['span', 'div'], class_=re.compile(r'salary'))
+                    
+                    if not title_elem:
+                        continue
+                    
+                    title = title_elem.get_text(strip=True)
+                    company = company_elem.get_text(strip=True) if company_elem else "See TotalJobs"
+                    location = location_elem.get_text(strip=True) if location_elem else "UK"
+                    salary = salary_elem.get_text(strip=True) if salary_elem else ""
+                    
+                    link = card.find('a', href=True)
+                    job_url = link['href'] if link else source_url
+                    if job_url.startswith('/'):
+                        job_url = f"https://www.totaljobs.com{job_url}"
+                    
+                    if title and len(title) > 3:
+                        jobs.append(Job(
+                            id=f"totaljobs_{i+1}",
+                            company=company,
+                            title=title,
+                            location=location,
+                            description="",
+                            url=job_url,
+                            source="totaljobs",
+                            salary=salary
+                        ))
+                except:
+                    continue
+        except Exception as e:
+            logger.error(f"TotalJobs parsing error: {e}")
+        
+        return jobs
+    
+    def search_jobserve_via_google(self, job_title: str, location: str, remote: bool = False) -> List[Job]:
+        """Search Jobserve via Google (Jobserve is JS-heavy)."""
+        query = f'site:jobserve.com/gb "{job_title}" {location}'
+        if remote:
+            query += ' remote'
+        
+        logger.info(f"Searching Jobserve via Google: {query}")
+        results = self._search_google_serp(query)
+        return self._parse_jobserve_google_results(results, is_remote=remote)
+    
+    def _parse_jobserve_google_results(self, google_results: List[dict], is_remote: bool = False) -> List[Job]:
+        """Parse Google search results for Jobserve jobs."""
+        jobs = []
+        
+        for i, result in enumerate(google_results[:20]):
+            try:
+                title = result.get('title', '')
+                description = result.get('description', '')
+                url = result.get('link', '')
+                
+                if not url or 'jobserve.com' not in url:
+                    continue
+                
+                # Clean title
+                title_clean = title.replace(' - Jobserve', '').replace(' | Jobserve', '').strip()
+                
+                if not title_clean or len(title_clean) < 5:
+                    continue
+                
+                # If searching for remote, filter
+                if is_remote:
+                    combined = (title + ' ' + description).lower()
+                    if 'remote' not in combined:
+                        continue
+                
+                jobs.append(Job(
+                    id=f"jobserve_{i+1}",
+                    company="See Jobserve",
+                    title=title_clean,
+                    location="UK",
+                    description=description[:200] if description else "",
+                    url=url,
+                    source="jobserve",
+                    salary=""
+                ))
+            except:
+                continue
+        
+        logger.info(f"Parsed {len(jobs)} Jobserve jobs from Google results")
+        return jobs
+    
     def search_jobs(self, filters: 'SearchFilters', fast_mode: bool = False) -> List[Job]:
         """
-        Search for jobs across multiple sources in PARALLEL for speed.
+        Search for UK jobs across multiple sources in PARALLEL for speed.
         
         Args:
             filters: Search filters (job titles, location, etc.)
-            fast_mode: If True, only scrape the 2 fastest sources (Indeed, LinkedIn)
+            fast_mode: If True, only scrape the 2 fastest sources (Indeed UK, LinkedIn)
         
-        Sources:
-            - Indeed, LinkedIn, Glassdoor (direct scrape)
-            - Dice, ZipRecruiter (via Google SERP - JS-heavy sites)
+        UK Sources:
+            - Indeed UK, LinkedIn, Glassdoor UK (direct scrape)
+            - Reed, CV-Library, TotalJobs (direct scrape)
+            - Jobserve (via Google SERP - JS-heavy)
         """
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import time
@@ -1014,22 +1357,22 @@ class BrightDataJobScraper:
         start_time = time.time()
         all_jobs = []
         job_title = ' '.join(filters.job_titles) if filters.job_titles else "Data Engineer"
-        location = filters.location or "United States"
+        location = filters.location or "United Kingdom"  # Default to UK
         is_remote = filters.location_type == 'remote'
         days = filters.days_ago
         
-        # Define scraper tasks
+        # Define UK scraper tasks
         def scrape_indeed_task():
             try:
-                logger.info("=== Scraping Indeed ===")
+                logger.info("=== Scraping Indeed UK ===")
                 return self.scrape_indeed(job_title, location, is_remote, days)
             except Exception as e:
-                logger.error(f"Indeed error: {e}")
+                logger.error(f"Indeed UK error: {e}")
                 return []
         
         def scrape_linkedin_task():
             try:
-                logger.info("=== Scraping LinkedIn ===")
+                logger.info("=== Scraping LinkedIn UK ===")
                 return self.scrape_linkedin(job_title, location, is_remote, days)
             except Exception as e:
                 logger.error(f"LinkedIn error: {e}")
@@ -1037,49 +1380,67 @@ class BrightDataJobScraper:
         
         def scrape_glassdoor_task():
             try:
-                logger.info("=== Scraping Glassdoor ===")
+                logger.info("=== Scraping Glassdoor UK ===")
                 return self.scrape_glassdoor(job_title, location, is_remote, days)
             except Exception as e:
-                logger.error(f"Glassdoor error: {e}")
+                logger.error(f"Glassdoor UK error: {e}")
                 return []
         
-        def scrape_dice_task():
+        def scrape_reed_task():
             try:
-                logger.info("=== Searching Dice via Google ===")
-                return self.search_dice_via_google(job_title, location, is_remote)
+                logger.info("=== Scraping Reed ===")
+                return self.scrape_reed(job_title, location, is_remote, days)
             except Exception as e:
-                logger.error(f"Dice error: {e}")
+                logger.error(f"Reed error: {e}")
                 return []
         
-        def scrape_ziprecruiter_task():
+        def scrape_cvlibrary_task():
             try:
-                logger.info("=== Searching ZipRecruiter via Google ===")
-                return self.search_ziprecruiter_via_google(job_title, location, is_remote)
+                logger.info("=== Scraping CV-Library ===")
+                return self.scrape_cvlibrary(job_title, location, is_remote, days)
             except Exception as e:
-                logger.error(f"ZipRecruiter error: {e}")
+                logger.error(f"CV-Library error: {e}")
+                return []
+        
+        def scrape_totaljobs_task():
+            try:
+                logger.info("=== Scraping TotalJobs ===")
+                return self.scrape_totaljobs(job_title, location, is_remote, days)
+            except Exception as e:
+                logger.error(f"TotalJobs error: {e}")
+                return []
+        
+        def scrape_jobserve_task():
+            try:
+                logger.info("=== Searching Jobserve via Google ===")
+                return self.search_jobserve_via_google(job_title, location, is_remote)
+            except Exception as e:
+                logger.error(f"Jobserve error: {e}")
                 return []
         
         # Choose tasks based on mode
         if fast_mode:
-            # Fast mode: Only Indeed and LinkedIn (fastest sources)
+            # Fast mode: Only Indeed UK and LinkedIn (fastest sources)
             tasks = [scrape_indeed_task, scrape_linkedin_task]
-            logger.info("Fast mode: Scraping Indeed and LinkedIn only")
+            logger.info("Fast mode: Scraping Indeed UK and LinkedIn only")
         else:
-            # Full mode: All 5 sources
+            # Full mode: All 7 UK sources
             tasks = [
                 scrape_indeed_task,
                 scrape_linkedin_task,
                 scrape_glassdoor_task,
-                scrape_dice_task,
-                scrape_ziprecruiter_task
+                scrape_reed_task,
+                scrape_cvlibrary_task,
+                scrape_totaljobs_task,
+                scrape_jobserve_task
             ]
-            logger.info("Full mode: Scraping all 5 sources in parallel")
+            logger.info("Full mode: Scraping all 7 UK sources in parallel")
         
         # Execute all tasks in parallel with timeout
         TIMEOUT_SECONDS = 15  # Max wait per source
-        OVERALL_TIMEOUT = 45  # Total max wait time
+        OVERALL_TIMEOUT = 60  # Total max wait time (increased for 7 sources)
         
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        with ThreadPoolExecutor(max_workers=7) as executor:
             future_to_source = {executor.submit(task): task.__name__ for task in tasks}
             
             try:

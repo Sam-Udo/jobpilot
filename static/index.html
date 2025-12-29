@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JobPilot v3</title>
+    <title>JobPilot UK - AI Job Search</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -380,8 +380,8 @@
 <body>
     <div class="container">
         <header>
-            <h1>JobPilot</h1>
-            <p class="subtitle">Search jobs, generate tailored CVs with AI</p>
+            <h1>🇬🇧 JobPilot UK</h1>
+            <p class="subtitle">Search UK jobs across Indeed, LinkedIn, Reed, CV-Library, TotalJobs, Glassdoor & Jobserve</p>
         </header>
 
         <div id="message-box"></div>
@@ -389,8 +389,8 @@
         <section class="search-section">
             <div class="search-row">
                 <input type="text" class="search-input" id="search-input" 
-                       placeholder="e.g. remote data engineer jobs in Texas">
-                <button class="btn btn-primary" id="search-btn" onclick="searchJobs()">Search</button>
+                       placeholder="e.g. remote data engineer jobs in London">
+                <button class="btn btn-primary" id="search-btn" onclick="searchJobs()">Search UK Jobs</button>
             </div>
             <div class="upload-row">
                 <button class="upload-btn" id="upload-btn" onclick="triggerFileUpload()">
@@ -402,9 +402,9 @@
             <div class="mode-row" style="margin-top: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
                 <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; color: #94a3b8; font-size: 0.85rem;">
                     <input type="checkbox" id="fast-mode" checked style="width: 16px; height: 16px; accent-color: #6366f1;">
-                    Fast search (Indeed + LinkedIn only)
+                    Fast search (Indeed UK + LinkedIn only)
                 </label>
-                <span style="color: #64748b; font-size: 0.8rem;">| Uncheck for all 5 sites (slower)</span>
+                <span style="color: #64748b; font-size: 0.8rem;">| Uncheck for all 7 UK sites (slower)</span>
             </div>
         </section>
 
