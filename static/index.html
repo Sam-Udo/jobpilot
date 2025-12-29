@@ -512,8 +512,8 @@
             currentPage = 1;
             
             const loadingMsg = fastMode 
-                ? 'Searching jobs (fast mode)...' 
-                : 'Searching all 5 sites (this may take 20-30 seconds)...';
+                ? 'Searching 2 UK sites (Indeed + LinkedIn) — approx 10-15 seconds...' 
+                : 'Searching 7 UK sites (Indeed, LinkedIn, Reed, CV-Library, TotalJobs, Glassdoor, Jobserve) — approx 25-45 seconds...';
             showLoading(loadingMsg);
             document.getElementById('search-btn').disabled = true;
 
@@ -658,7 +658,7 @@
             if (newPage < 1 || newPage > totalPages) return;
 
             currentPage = newPage;
-            showLoading('Loading page...');
+            showLoading('Loading page ' + newPage + '...');
 
             try {
                 const query = document.getElementById('search-input').value.trim();

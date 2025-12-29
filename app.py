@@ -1666,18 +1666,31 @@ def cache_search_results(cache_key: str, jobs: List[Job]):
     logger.info(f"Cached {len(jobs)} jobs with key {cache_key}")
 
 def load_cached_results(cache_key: str) -> Optional[SearchResults]:
-    """Load cached results from disk."""
+    """Load cached results from memory first, then disk."""
+    # Check memory cache first (faster)
+    if cache_key in search_cache:
+        logger.info(f"Found {len(search_cache[cache_key].jobs)} jobs in memory cache")
+        return search_cache[cache_key]
+    
+    # Fall back to disk cache
     cache_file = os.path.join(CACHE_DIR, f"{cache_key}.json")
     if os.path.exists(cache_file):
-        with open(cache_file, 'r') as f:
-            data = json.load(f)
-            jobs = [Job(**j) for j in data['jobs']]
-            return SearchResults(
-                jobs=jobs,
-                total=data['total'],
-                cached_at=data['cached_at'],
-                cache_key=cache_key
-            )
+        try:
+            with open(cache_file, 'r') as f:
+                data = json.load(f)
+                jobs = [Job(**j) for j in data['jobs']]
+                result = SearchResults(
+                    jobs=jobs,
+                    total=data['total'],
+                    cached_at=data['cached_at'],
+                    cache_key=cache_key
+                )
+                # Also store in memory for faster subsequent access
+                search_cache[cache_key] = result
+                logger.info(f"Loaded {len(jobs)} jobs from disk cache")
+                return result
+        except Exception as e:
+            logger.error(f"Failed to load disk cache: {e}")
     return None
 
 # =============================================================================
@@ -2958,7 +2971,8 @@ async def api_search(request: SearchRequest):
     # Include fast_mode in cache key so switching modes fetches fresh results
     cache_key = filters.cache_key(fast_mode=request.fast_mode)
     
-    logger.info(f"NLU parsed: titles={filters.job_titles}, location={filters.location}, type={filters.location_type}, fast_mode={request.fast_mode}")
+    logger.info(f"NLU parsed: titles={filters.job_titles}, location={filters.location}, type={filters.location_type}, fast_mode={request.fast_mode}, page={request.page}")
+    logger.info(f"Cache key: {cache_key}")
     
     # Check cache first (cache expires after 1 hour)
     cached = load_cached_results(cache_key)
@@ -2968,16 +2982,19 @@ async def api_search(request: SearchRequest):
             cache_time = datetime.fromisoformat(cached.cached_at)
             if datetime.now() - cache_time < timedelta(hours=1):
                 cache_valid = True
-                logger.info(f"Cache hit: {len(cached.jobs)} jobs (cached {cached.cached_at})")
-        except:
-            pass
+                logger.info(f"Cache HIT: {len(cached.jobs)} jobs (cached {cached.cached_at}), serving page {request.page}")
+        except Exception as e:
+            logger.warning(f"Cache time parse error: {e}")
+    else:
+        logger.info(f"Cache MISS: No cached results for key {cache_key}")
     
     if cache_valid:
         jobs = cached.jobs
     else:
         # Scrape fresh jobs using Bright Data (parallel execution)
         mode = "fast" if request.fast_mode else "full"
-        logger.info(f"Cache miss - scraping fresh jobs ({mode} mode)...")
+        site_count = 2 if request.fast_mode else 7
+        logger.info(f"Scraping fresh jobs from {site_count} sites ({mode} mode)...")
         jobs = job_scraper.search_jobs(filters, fast_mode=request.fast_mode)
         
         if jobs:
