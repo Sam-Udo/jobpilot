@@ -1669,11 +1669,14 @@ def load_cached_results(cache_key: str) -> Optional[SearchResults]:
     """Load cached results from memory first, then disk."""
     # Check memory cache first (faster)
     if cache_key in search_cache:
-        logger.info(f"Found {len(search_cache[cache_key].jobs)} jobs in memory cache")
-        return search_cache[cache_key]
+        result = search_cache[cache_key]
+        logger.info(f"Memory cache HIT: {len(result.jobs)} jobs")
+        return result
     
     # Fall back to disk cache
     cache_file = os.path.join(CACHE_DIR, f"{cache_key}.json")
+    logger.info(f"Checking disk cache: {cache_file}")
+    
     if os.path.exists(cache_file):
         try:
             with open(cache_file, 'r') as f:
@@ -1687,10 +1690,13 @@ def load_cached_results(cache_key: str) -> Optional[SearchResults]:
                 )
                 # Also store in memory for faster subsequent access
                 search_cache[cache_key] = result
-                logger.info(f"Loaded {len(jobs)} jobs from disk cache")
+                logger.info(f"Disk cache HIT: {len(jobs)} jobs, cached at {data['cached_at']}")
                 return result
         except Exception as e:
             logger.error(f"Failed to load disk cache: {e}")
+    else:
+        logger.info(f"Disk cache MISS: file not found")
+    
     return None
 
 # =============================================================================
@@ -2965,50 +2971,60 @@ async def api_upload_cv(file: UploadFile = File(...), user_id: str = Form(...)):
 @app.post("/api/search")
 async def api_search(request: SearchRequest):
     """Search for jobs - scrapes dynamically using Bright Data."""
-    logger.info(f"Search: {request.query}")
+    logger.info(f"Search: {request.query}, page={request.page}, fast_mode={request.fast_mode}")
     
     filters = intent_parser.parse(request.query)
-    # Include fast_mode in cache key so switching modes fetches fresh results
     cache_key = filters.cache_key(fast_mode=request.fast_mode)
     
-    logger.info(f"NLU parsed: titles={filters.job_titles}, location={filters.location}, type={filters.location_type}, fast_mode={request.fast_mode}, page={request.page}")
+    logger.info(f"NLU parsed: titles={filters.job_titles}, location={filters.location}, type={filters.location_type}")
     logger.info(f"Cache key: {cache_key}")
     
-    # Check cache first (cache expires after 1 hour)
-    cached = load_cached_results(cache_key)
-    cache_valid = False
-    if cached and cached.jobs:
-        try:
-            cache_time = datetime.fromisoformat(cached.cached_at)
-            if datetime.now() - cache_time < timedelta(hours=1):
-                cache_valid = True
-                logger.info(f"Cache HIT: {len(cached.jobs)} jobs (cached {cached.cached_at}), serving page {request.page}")
-        except Exception as e:
-            logger.warning(f"Cache time parse error: {e}")
-    else:
-        logger.info(f"Cache MISS: No cached results for key {cache_key}")
+    jobs = []
+    source = "fresh"
     
-    if cache_valid:
-        jobs = cached.jobs
-    else:
-        # Scrape fresh jobs using Bright Data (parallel execution)
+    # For pagination (page > 1), try user session first (fastest)
+    if request.page > 1:
+        session = user_sessions.get(request.user_id, {})
+        session_jobs = session.get("jobs", [])
+        session_key = session.get("cache_key", "")
+        if session_jobs and session_key == cache_key:
+            jobs = session_jobs
+            source = "session"
+            logger.info(f"Using session cache: {len(jobs)} jobs for page {request.page}")
+    
+    # Check disk/memory cache if no session jobs
+    if not jobs:
+        cached = load_cached_results(cache_key)
+        if cached and cached.jobs:
+            try:
+                cache_time = datetime.fromisoformat(cached.cached_at)
+                if datetime.now() - cache_time < timedelta(hours=1):
+                    jobs = cached.jobs
+                    source = "cache"
+                    logger.info(f"Cache HIT: {len(jobs)} jobs (cached {cached.cached_at})")
+            except Exception as e:
+                logger.warning(f"Cache time parse error: {e}")
+    
+    # Scrape fresh if no cached results
+    if not jobs:
         mode = "fast" if request.fast_mode else "full"
         site_count = 2 if request.fast_mode else 7
-        logger.info(f"Scraping fresh jobs from {site_count} sites ({mode} mode)...")
+        logger.info(f"Cache MISS - scraping {site_count} sites ({mode} mode)...")
         jobs = job_scraper.search_jobs(filters, fast_mode=request.fast_mode)
+        source = "scraped"
         
         if jobs:
-            # Cache the results
             cache_search_results(cache_key, jobs)
             logger.info(f"Scraped and cached {len(jobs)} jobs")
         else:
             logger.warning("No jobs found from scraping")
     
-    # Store in session
+    # Store in session for pagination
     if request.user_id not in user_sessions:
         user_sessions[request.user_id] = {}
     user_sessions[request.user_id]["jobs"] = jobs
     user_sessions[request.user_id]["filters"] = asdict(filters)
+    user_sessions[request.user_id]["cache_key"] = cache_key
     
     # Pagination
     page = request.page
@@ -3019,15 +3035,17 @@ async def api_search(request: SearchRequest):
     jobs_page = jobs[start:end]
     total_pages = max(1, (len(jobs) + per_page - 1) // per_page)
     
+    logger.info(f"Returning page {page}/{total_pages}: {len(jobs_page)} jobs (total: {len(jobs)}, source: {source})")
+    
     return {
         "jobs": [asdict(j) for j in jobs_page],
         "total": len(jobs),
         "page": page,
         "total_pages": total_pages,
         "per_page": per_page,
-        "cached": cache_valid,
+        "cached": source != "scraped",
         "filters": asdict(filters),
-        "source": "Bright Data - Indeed, LinkedIn, Glassdoor, Dice, ZipRecruiter"
+        "data_source": source
     }
 
 class GoogleResultsRequest(BaseModel):
