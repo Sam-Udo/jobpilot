@@ -1632,11 +1632,11 @@ class BrightDataJobScraper:
     # =========================================================================
     
     def search_naukrigulf_via_google(self, job_title: str, location: str = "Saudi Arabia") -> List[Job]:
-        """Search Naukrigulf via Google for direct job links (URLs with -jid-)."""
-        query = f'site:naukrigulf.com "{job_title}" "{location}" -jid-'
+        """Search Naukrigulf via Google for job listings."""
+        query = f'site:naukrigulf.com "{job_title}" "Saudi Arabia"'
         
         logger.info(f"Searching Naukrigulf via Google: {query}")
-        results = self._search_google_serp(query + " tbs=qdr:w2")  # Last 2 weeks
+        results = self._search_google_serp(query)
         
         jobs = []
         for i, result in enumerate(results[:15]):
@@ -1648,14 +1648,18 @@ class BrightDataJobScraper:
                 if not url or 'naukrigulf.com' not in url:
                     continue
                 
-                # Only include direct job pages (contain -jid-)
-                if '-jid-' not in url and '-cd-' not in url:
+                # Skip salary pages
+                if '/salaries/' in url:
                     continue
                 
                 title_clean = title.replace(' - Jobs in Saudi Arabia', '').replace(' - Naukrigulf', '').strip()
+                title_clean = title_clean.replace(' - Naukrigulf.com', '').strip()
                 title_clean = title_clean.split(' - ')[0].strip() if ' - ' in title_clean else title_clean
+                # Remove vacancy counts like "61 Vacancies Jan 2025"
+                if 'Vacancies' in title_clean:
+                    title_clean = title_clean.split(' - ')[0].strip()
                 
-                if not title_clean or len(title_clean) < 5:
+                if not title_clean or len(title_clean) < 3:
                     continue
                 
                 jobs.append(Job(
@@ -1675,11 +1679,11 @@ class BrightDataJobScraper:
         return jobs
     
     def search_bayt_via_google(self, job_title: str, location: str = "Saudi Arabia") -> List[Job]:
-        """Search Bayt.com via Google for direct job links."""
-        query = f'site:bayt.com "{job_title}" "{location}"'
+        """Search Bayt.com via Google for job listings."""
+        query = f'site:bayt.com "{job_title}" "saudi arabia"'
         
         logger.info(f"Searching Bayt.com via Google: {query}")
-        results = self._search_google_serp(query + " tbs=qdr:w2")  # Last 2 weeks
+        results = self._search_google_serp(query)
         
         jobs = []
         for i, result in enumerate(results[:15]):
@@ -1691,17 +1695,14 @@ class BrightDataJobScraper:
                 if not url or 'bayt.com' not in url:
                     continue
                 
-                # Skip search results pages, only want job detail pages
-                if '/jobs/' in url and url.count('/') > 5:  # Detail pages have more path segments
-                    pass
-                elif 'job-' in url or '/jobs/' not in url:
-                    continue
-                
-                title_clean = title.replace(' - Bayt.com', '').replace('Jobs in Saudi Arabia', '').strip()
+                title_clean = title.replace(' - Bayt.com', '').strip()
                 title_clean = title_clean.split(' | ')[0].strip() if ' | ' in title_clean else title_clean
                 title_clean = title_clean.split('(')[0].strip() if '(' in title_clean else title_clean
+                # Remove date patterns like "(Dec 2025)"
+                if 'Jan 20' in title_clean or 'Dec 20' in title_clean:
+                    title_clean = title_clean.split('(')[0].strip()
                 
-                if not title_clean or len(title_clean) < 5:
+                if not title_clean or len(title_clean) < 3:
                     continue
                 
                 jobs.append(Job(
@@ -1721,11 +1722,11 @@ class BrightDataJobScraper:
         return jobs
     
     def search_gulftalent_via_google(self, job_title: str, location: str = "Saudi Arabia") -> List[Job]:
-        """Search GulfTalent via Google for direct job links (URLs with job IDs)."""
-        query = f'site:gulftalent.com/saudi-arabia/jobs "{job_title}"'
+        """Search GulfTalent via Google for job listings."""
+        query = f'site:gulftalent.com "{job_title}" "saudi arabia"'
         
         logger.info(f"Searching GulfTalent via Google: {query}")
-        results = self._search_google_serp(query + " tbs=qdr:w2")  # Last 2 weeks
+        results = self._search_google_serp(query)
         
         jobs = []
         for i, result in enumerate(results[:15]):
@@ -1737,18 +1738,14 @@ class BrightDataJobScraper:
                 if not url or 'gulftalent.com' not in url:
                     continue
                 
-                # Only include direct job pages (have numeric ID at end)
-                if '/jobs/' not in url:
-                    continue
-                # Check if URL ends with a job ID (numbers)
-                url_parts = url.rstrip('/').split('-')
-                if not url_parts[-1].isdigit():
-                    continue
-                
-                title_clean = title.replace(' | GulfTalent', '').replace(' Jobs in Saudi Arabia', '').strip()
+                title_clean = title.replace(' | GulfTalent', '').replace(' | GulfTalent.com', '').strip()
+                title_clean = title_clean.replace(' Jobs in Saudi Arabia', '').strip()
                 title_clean = title_clean.split(' | ')[0].strip() if ' | ' in title_clean else title_clean
+                # Remove date patterns
+                if '(Dec 20' in title_clean or '(Jan 20' in title_clean:
+                    title_clean = title_clean.split('(')[0].strip()
                 
-                if not title_clean or len(title_clean) < 5:
+                if not title_clean or len(title_clean) < 3:
                     continue
                 
                 jobs.append(Job(
@@ -1799,10 +1796,10 @@ class BrightDataJobScraper:
     
     def search_tanqeeb_via_google(self, job_title: str, location: str = "Saudi Arabia") -> List[Job]:
         """Search Tanqeeb (job aggregator) via Google."""
-        query = f'site:tanqeeb.com "{job_title}" "{location}"'
+        query = f'site:tanqeeb.com "{job_title}" "saudi"'
         
         logger.info(f"Searching Tanqeeb via Google: {query}")
-        results = self._search_google_serp(query + " tbs=qdr:w2")
+        results = self._search_google_serp(query)
         
         jobs = []
         for i, result in enumerate(results[:10]):
@@ -1814,9 +1811,9 @@ class BrightDataJobScraper:
                 if not url or 'tanqeeb.com' not in url:
                     continue
                 
-                title_clean = title.replace(' - Tanqeeb', '').strip()
+                title_clean = title.replace(' - Tanqeeb', '').replace(' | Tanqeeb', '').strip()
                 
-                if not title_clean or len(title_clean) < 5:
+                if not title_clean or len(title_clean) < 3:
                     continue
                 
                 jobs.append(Job(
@@ -1840,7 +1837,7 @@ class BrightDataJobScraper:
         query = f'site:mihnati.com "{job_title}"'
         
         logger.info(f"Searching Mihnati via Google: {query}")
-        results = self._search_google_serp(query + " tbs=qdr:w2")
+        results = self._search_google_serp(query)
         
         jobs = []
         for i, result in enumerate(results[:10]):
@@ -1852,9 +1849,9 @@ class BrightDataJobScraper:
                 if not url or 'mihnati.com' not in url:
                     continue
                 
-                title_clean = title.replace(' - Mihnati', '').strip()
+                title_clean = title.replace(' - Mihnati', '').replace(' | Mihnati', '').strip()
                 
-                if not title_clean or len(title_clean) < 5:
+                if not title_clean or len(title_clean) < 3:
                     continue
                 
                 jobs.append(Job(
@@ -1874,20 +1871,21 @@ class BrightDataJobScraper:
         return jobs
     
     def search_recruitment_agencies_ksa(self, job_title: str) -> List[Job]:
-        """Search major recruitment agencies (Hays, Robert Walters, Adecco) for KSA jobs."""
-        agencies = [
-            ('hays.com.sa', 'hays'),
-            ('robertwalters.com', 'robertwalters'),
-            ('adecco.com.sa', 'adecco')
+        """Search major recruitment agencies and job sites for KSA jobs."""
+        # Include more sites that actually have KSA jobs
+        search_queries = [
+            (f'site:hays.com "{job_title}" "Saudi Arabia"', 'hays'),
+            (f'site:robertwalters.com "{job_title}" "Saudi Arabia"', 'robertwalters'),
+            (f'site:linkedin.com/jobs "{job_title}" "Saudi Arabia"', 'linkedin'),
+            (f'"{job_title}" "Saudi Arabia" jobs', 'general')
         ]
         
         all_jobs = []
-        for site, source_name in agencies:
-            query = f'site:{site} "{job_title}" "Saudi Arabia"'
+        for query, source_name in search_queries:
             logger.info(f"Searching {source_name}: {query}")
             
             try:
-                results = self._search_google_serp(query + " tbs=qdr:w2")
+                results = self._search_google_serp(query)
                 
                 for i, result in enumerate(results[:5]):
                     title = result.get('title', '')
@@ -1897,14 +1895,19 @@ class BrightDataJobScraper:
                     if not url:
                         continue
                     
-                    title_clean = title.split(' | ')[0].strip() if ' | ' in title else title.strip()
+                    # Skip if already have jobs from main sources
+                    if any(x in url for x in ['naukrigulf', 'bayt.com', 'gulftalent', 'tanqeeb', 'mihnati']):
+                        continue
                     
-                    if not title_clean or len(title_clean) < 5:
+                    title_clean = title.split(' | ')[0].strip() if ' | ' in title else title.strip()
+                    title_clean = title_clean.split(' - ')[0].strip() if ' - ' in title_clean else title_clean
+                    
+                    if not title_clean or len(title_clean) < 3:
                         continue
                     
                     all_jobs.append(Job(
                         id=f"{source_name}_{i+1}",
-                        company=source_name.capitalize(),
+                        company=source_name.capitalize() if source_name != 'general' else 'See Link',
                         title=title_clean,
                         location="Saudi Arabia",
                         description=description[:200] if description else "",
@@ -1916,7 +1919,7 @@ class BrightDataJobScraper:
                 logger.error(f"Error searching {source_name}: {e}")
                 continue
         
-        logger.info(f"Found {len(all_jobs)} jobs from recruitment agencies")
+        logger.info(f"Found {len(all_jobs)} jobs from recruitment agencies/other sources")
         return all_jobs
     
     # =========================================================================
