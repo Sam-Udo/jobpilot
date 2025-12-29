@@ -3007,6 +3007,21 @@ async def api_search(request: SearchRequest):
     
     # Scrape fresh if no cached results
     if not jobs:
+        # If requesting page > 1 but no cache, we lost the session - need to re-search from page 1
+        if request.page > 1:
+            logger.warning(f"Page {request.page} requested but no cached jobs - cache expired")
+            return {
+                "jobs": [],
+                "total": 0,
+                "page": request.page,
+                "total_pages": 0,
+                "per_page": 10,
+                "cached": False,
+                "filters": asdict(filters),
+                "data_source": "cache_expired",
+                "error": "Session expired. Please search again."
+            }
+        
         mode = "fast" if request.fast_mode else "full"
         site_count = 2 if request.fast_mode else 7
         logger.info(f"Cache MISS - scraping {site_count} sites ({mode} mode)...")

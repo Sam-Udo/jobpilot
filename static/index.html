@@ -670,9 +670,27 @@
                 });
 
                 const data = await res.json();
-                allJobs = data.jobs || [];
-                totalPages = data.total_pages || 1;
-                displayJobs(allJobs);
+                console.log('Page response:', data);
+                
+                // Check for cache expired error
+                if (data.error || data.data_source === 'cache_expired') {
+                    showMessage('Session expired. Re-searching...', 'info');
+                    currentPage = 1;
+                    searchJobs(); // Re-run search
+                    return;
+                }
+                
+                // Check if we got jobs
+                if (data.jobs && data.jobs.length > 0) {
+                    allJobs = data.jobs;
+                    totalPages = data.total_pages || 1;
+                    displayJobs(allJobs);
+                    showMessage(`Page ${currentPage} of ${totalPages} (${data.total} total jobs)`, 'success');
+                } else {
+                    allJobs = [];
+                    totalPages = 1;
+                    displayJobs(allJobs);
+                }
             } catch (e) {
                 showMessage('Failed to load page: ' + e.message, 'error');
             }
