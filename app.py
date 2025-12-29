@@ -1521,7 +1521,73 @@ class BrightDataJobScraper:
                 unique_jobs.append(job)
         
         logger.info(f"=== After dedup: {len(unique_jobs)} unique jobs ===")
-        return unique_jobs
+        
+        # Filter jobs to match search terms
+        filtered_jobs = self._filter_jobs_by_search(unique_jobs, job_title, filters)
+        logger.info(f"=== After filtering: {len(filtered_jobs)} matching jobs ===")
+        
+        return filtered_jobs
+    
+    def _filter_jobs_by_search(self, jobs: List[Job], search_title: str, filters: 'SearchFilters') -> List[Job]:
+        """
+        Filter jobs to only include those that match the user's search terms.
+        Checks job title and description against search keywords.
+        """
+        if not jobs:
+            return jobs
+        
+        # Extract keywords from search
+        search_lower = search_title.lower()
+        
+        # Split into individual keywords (e.g., "data engineer ir35" -> ["data", "engineer", "ir35"])
+        keywords = [w.strip() for w in search_lower.split() if len(w.strip()) > 2]
+        
+        # Check for IR35 specifically
+        has_ir35_search = 'ir35' in search_lower or 'outside ir35' in search_lower or 'inside ir35' in search_lower
+        
+        # Check for contract type
+        has_contract_search = 'contract' in search_lower
+        
+        filtered = []
+        for job in jobs:
+            job_text = f"{job.title} {job.description} {job.company}".lower()
+            
+            # Must match at least the core job title keywords (not IR35/contract modifiers)
+            core_keywords = [k for k in keywords if k not in ['ir35', 'inside', 'outside', 'contract', 'contracts']]
+            
+            if not core_keywords:
+                # No specific job title, accept all
+                title_match = True
+            else:
+                # Check if at least half the core keywords are present
+                matches = sum(1 for k in core_keywords if k in job_text)
+                title_match = matches >= len(core_keywords) / 2
+            
+            # If user searched for IR35, job must mention IR35
+            if has_ir35_search:
+                ir35_match = 'ir35' in job_text or 'outside ir35' in job_text or 'inside ir35' in job_text
+            else:
+                ir35_match = True  # Not required
+            
+            # If user searched for contract, job should mention contract
+            if has_contract_search:
+                contract_match = 'contract' in job_text
+            else:
+                contract_match = True  # Not required
+            
+            # Check remote if specified
+            if filters.location_type == 'remote':
+                remote_match = 'remote' in job_text or 'work from home' in job_text or 'wfh' in job_text
+            else:
+                remote_match = True  # Not required
+            
+            # Job must pass all required filters
+            if title_match and ir35_match and contract_match and remote_match:
+                filtered.append(job)
+            else:
+                logger.debug(f"Filtered out: {job.title} (title={title_match}, ir35={ir35_match}, contract={contract_match}, remote={remote_match})")
+        
+        return filtered
 
 # Initialize scraper
 job_scraper = BrightDataJobScraper()
