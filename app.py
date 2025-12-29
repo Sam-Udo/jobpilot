@@ -65,9 +65,10 @@ class SearchFilters:
     location: str = ""
     days_ago: int = 30
     
-    def cache_key(self) -> str:
-        """Generate cache key from filters."""
-        key_str = f"{'-'.join(sorted(self.job_titles))}_{self.location_type}_{self.location}_{self.days_ago}"
+    def cache_key(self, fast_mode: bool = True) -> str:
+        """Generate cache key from filters. Includes fast_mode to separate caches."""
+        mode = "fast" if fast_mode else "full"
+        key_str = f"{'-'.join(sorted(self.job_titles))}_{self.location_type}_{self.location}_{self.days_ago}_{mode}"
         return hashlib.md5(key_str.encode()).hexdigest()
 
 @dataclass
@@ -2954,9 +2955,10 @@ async def api_search(request: SearchRequest):
     logger.info(f"Search: {request.query}")
     
     filters = intent_parser.parse(request.query)
-    cache_key = filters.cache_key()
+    # Include fast_mode in cache key so switching modes fetches fresh results
+    cache_key = filters.cache_key(fast_mode=request.fast_mode)
     
-    logger.info(f"NLU parsed: titles={filters.job_titles}, location={filters.location}, type={filters.location_type}")
+    logger.info(f"NLU parsed: titles={filters.job_titles}, location={filters.location}, type={filters.location_type}, fast_mode={request.fast_mode}")
     
     # Check cache first (cache expires after 1 hour)
     cached = load_cached_results(cache_key)
