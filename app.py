@@ -233,18 +233,29 @@ class IntentParser:
     }
 
     # UK Contract/IR35 terms (common in UK job market)
-    CONTRACT_TERMS = [
-        'outside ir35', 'inside ir35', 'ir35', 
-        'contract', 'contracts', 'contractor', 'contracting',
-        'permanent', 'perm', 'fixed term', 'ftc',
-        'day rate', 'daily rate', 'ltd', 'limited company',
-        'umbrella', 'paye'
-    ]
+    # These are detected separately and added as search modifiers
+    IR35_TERMS = ['outside ir35', 'inside ir35', 'ir35']
+    CONTRACT_TERMS = ['contract', 'contracts', 'contractor', 'contracting',
+                      'permanent', 'perm', 'fixed term', 'ftc']
     
     def parse(self, text: str) -> SearchFilters:
         """Parse natural language to search filters for UK jobs."""
         text_lower = text.lower()
         filters = SearchFilters()
+        
+        # Detect IR35 preference (important for UK contract searches)
+        ir35_modifier = ""
+        for term in self.IR35_TERMS:
+            if term in text_lower:
+                ir35_modifier = term
+                break
+        
+        # Detect contract type
+        contract_type = ""
+        for term in self.CONTRACT_TERMS:
+            if term in text_lower:
+                contract_type = term
+                break
         
         # Detect location type (remote/hybrid/onsite)
         for loc_type, keywords in self.LOCATION_TYPES.items():
@@ -262,7 +273,7 @@ class IntentParser:
         if not filters.location:
             filters.location = "United Kingdom"
         
-        # Clean text to extract job title
+        # Clean text to extract base job title
         clean_text = text_lower
         
         # Remove location type keywords
@@ -274,8 +285,8 @@ class IntentParser:
         for loc_name in self.UK_LOCATIONS.keys():
             clean_text = clean_text.replace(loc_name, '')
         
-        # Remove UK contract/IR35 terms (these are not part of job titles)
-        for term in self.CONTRACT_TERMS:
+        # Remove IR35 and contract terms from job title extraction
+        for term in self.IR35_TERMS + self.CONTRACT_TERMS:
             clean_text = clean_text.replace(term, '')
         
         # Standard skip words
@@ -284,8 +295,18 @@ class IntentParser:
         words = clean_text.split()
         title_words = [w for w in words if w not in skip_words and len(w) > 2]
         
-        if title_words:
-            filters.job_titles = [' '.join(title_words).title()]
+        # Build job title with IR35/contract modifiers
+        base_title = ' '.join(title_words).title() if title_words else "Engineer"
+        
+        # Add IR35 modifier to the search (this is what users want!)
+        if ir35_modifier:
+            # e.g., "Data Engineer outside IR35" or "Data Engineer IR35"
+            filters.job_titles = [f"{base_title} {ir35_modifier}"]
+        elif contract_type:
+            # e.g., "Data Engineer contract"
+            filters.job_titles = [f"{base_title} {contract_type}"]
+        else:
+            filters.job_titles = [base_title]
         
         # Detect days ago filter
         days_match = re.search(r'(\d+)\s*days?', text_lower)
