@@ -560,6 +560,14 @@
                 return;
             }
 
+            // CLEAR PREVIOUS RESULTS immediately when starting new search
+            document.getElementById('results-grid').innerHTML = '';
+            document.getElementById('results-count').textContent = '';
+            document.getElementById('pagination').innerHTML = '';
+            document.getElementById('download-section').classList.add('hidden');
+            allJobs = [];
+            currentSearchQuery = query;
+
             const fastMode = document.getElementById('fast-mode').checked;
             searchFastMode = fastMode; // Store for pagination
             searchRegion = currentRegion; // Store for pagination

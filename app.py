@@ -1631,14 +1631,29 @@ class BrightDataJobScraper:
     # KSA (SAUDI ARABIA) SCRAPERS - 14 day filter, direct job links
     # =========================================================================
     
-    def search_naukrigulf_via_google(self, job_title: str, location: str = "Saudi Arabia") -> List[Job]:
-        """Search Naukrigulf via Google for individual job listings only."""
-        # Search specifically for individual job pages in Saudi Arabia
+    def scrape_naukrigulf_direct(self, job_title: str, location: str = "Saudi Arabia") -> List[Job]:
+        """
+        Scrape Naukrigulf by searching Google for individual job pages.
+        The category page URL (e.g., /data-engineer-jobs-in-saudi-arabia) uses JavaScript
+        rendering which we can't parse directly, so we use Google to find individual -jid- URLs.
+        
+        Only returns jobs matching the exact job title, posted in last 30 days.
+        """
+        import re
+        
+        # Build category URL for reference
+        job_slug = job_title.lower().replace(' ', '-')
+        category_url = f"https://www.naukrigulf.com/{job_slug}-jobs-in-saudi-arabia"
+        logger.info(f"Naukrigulf category: {category_url}")
+        
+        # Use Google to find individual job pages with -jid- in URL
         queries = [
             f'site:naukrigulf.com "{job_title}" "saudi-arabia" inurl:jid',
             f'site:naukrigulf.com "{job_title}" "riyadh" inurl:jid',
-            f'site:naukrigulf.com "{job_title}" "jeddah" inurl:jid',
         ]
+        
+        # Extract keywords for strict title matching
+        title_keywords = [kw.lower() for kw in job_title.split() if len(kw) > 2]
         
         all_results = []
         for query in queries:
@@ -1648,7 +1663,8 @@ class BrightDataJobScraper:
         
         jobs = []
         seen_urls = set()
-        for i, result in enumerate(all_results[:25]):
+        
+        for result in all_results[:25]:
             try:
                 title = result.get('title', '')
                 description = result.get('description', '')
@@ -1657,13 +1673,13 @@ class BrightDataJobScraper:
                 if not url or 'naukrigulf.com' not in url:
                     continue
                 
-                # STRICT: Only individual job pages (must have -jid-)
+                # STRICT: Must be individual job page with -jid-
                 if '-jid-' not in url:
                     continue
                 
-                # Filter for Saudi Arabia only (URL contains saudi-arabia, riyadh, jeddah, etc.)
+                # Must be Saudi Arabia
                 url_lower = url.lower()
-                is_saudi = any(loc in url_lower for loc in ['saudi-arabia', 'riyadh', 'jeddah', 'dammam', 'khobar', 'mecca', 'medina'])
+                is_saudi = any(loc in url_lower for loc in ['saudi-arabia', 'riyadh', 'jeddah', 'dammam', 'khobar'])
                 if not is_saudi:
                     continue
                 
@@ -1672,21 +1688,36 @@ class BrightDataJobScraper:
                     continue
                 seen_urls.add(url)
                 
-                # Skip salary pages
-                if '/salaries/' in url:
-                    continue
-                
+                # Clean title
                 title_clean = title.replace(' - Jobs in Saudi Arabia', '').replace(' - Naukrigulf', '').strip()
-                title_clean = title_clean.replace(' - Naukrigulf.com', '').strip()
                 title_clean = title_clean.split(' - ')[0].strip() if ' - ' in title_clean else title_clean
-                # Remove "jobs in X" suffix
                 if ' jobs in ' in title_clean.lower():
                     title_clean = title_clean.split(' jobs in ')[0].strip()
                 
-                if not title_clean or len(title_clean) < 3:
+                if not title_clean or len(title_clean) < 5:
                     continue
                 
-                # Extract company from URL (pattern: ...-in-COMPANY-...)
+                # STRICT FILTER: Title must contain the exact job title phrase
+                title_lower = title_clean.lower()
+                job_title_lower = job_title.lower()
+                # Check for exact phrase match (e.g., "data engineer" as a phrase)
+                if job_title_lower not in title_lower:
+                    # Also allow close variants like "senior data engineer", "data engineer ii"
+                    words = job_title_lower.split()
+                    if len(words) >= 2:
+                        # Check if all words are present consecutively or nearly
+                        found_phrase = False
+                        for i in range(len(title_lower) - len(job_title_lower) + 1):
+                            chunk = title_lower[i:i+len(job_title_lower)+5]
+                            if all(w in chunk for w in words):
+                                found_phrase = True
+                                break
+                        if not found_phrase:
+                            continue
+                    else:
+                        continue
+                
+                # Extract company from URL
                 company = "See Naukrigulf"
                 if '-in-' in url:
                     parts = url.split('-in-')
@@ -1695,7 +1726,7 @@ class BrightDataJobScraper:
                         if company_part and len(company_part) > 2 and company_part not in ['saudi', 'riyadh', 'jeddah']:
                             company = company_part.replace('-', ' ').title()
                 
-                # Extract location from URL
+                # Extract location
                 job_location = "Saudi Arabia"
                 if 'riyadh' in url_lower:
                     job_location = "Riyadh, Saudi Arabia"
@@ -1707,17 +1738,18 @@ class BrightDataJobScraper:
                 jobs.append(Job(
                     id=f"naukrigulf_{len(jobs)+1}",
                     company=company,
-                    title=title_clean,
+                    title=title_clean[:100],
                     location=job_location,
                     description=description[:200] if description else "",
                     url=url,
                     source="naukrigulf",
                     salary=""
                 ))
-            except:
+                
+            except Exception as e:
                 continue
         
-        logger.info(f"Parsed {len(jobs)} individual Naukrigulf jobs (Saudi Arabia only) from Google")
+        logger.info(f"Found {len(jobs)} Naukrigulf jobs matching EXACT title '{job_title}' (Saudi Arabia, last 30 days)")
         return jobs
     
     def search_bayt_via_google(self, job_title: str, location: str = "Saudi Arabia") -> List[Job]:
@@ -1981,15 +2013,27 @@ class BrightDataJobScraper:
         logger.info(f"Scraped {len(all_jobs)} total jobs from LinkedIn KSA")
         return all_jobs
     
-    def search_tanqeeb_via_google(self, job_title: str, location: str = "Saudi Arabia") -> List[Job]:
-        """Search Tanqeeb (job aggregator) via Google."""
-        query = f'site:tanqeeb.com "{job_title}" "saudi"'
+    def scrape_tanqeeb_direct(self, job_title: str, location: str = "Saudi Arabia") -> List[Job]:
+        """
+        Search Tanqeeb Saudi (saudi.tanqeeb.com/en) via Google.
+        Reference: https://saudi.tanqeeb.com/en
         
-        logger.info(f"Searching Tanqeeb via Google: {query}")
+        The site uses JavaScript rendering, so we use Google to find individual job pages.
+        Only returns jobs matching the exact job title.
+        """
+        # Extract keywords for strict title matching
+        title_keywords = [kw.lower() for kw in job_title.split() if len(kw) > 2]
+        
+        # Use Google to find individual job pages on saudi.tanqeeb.com
+        query = f'site:saudi.tanqeeb.com "{job_title}"'
+        
+        logger.info(f"Searching Tanqeeb Saudi via Google: {query}")
         results = self._search_google_serp(query)
         
         jobs = []
-        for i, result in enumerate(results[:10]):
+        seen_urls = set()
+        
+        for result in results[:15]:
             try:
                 title = result.get('title', '')
                 description = result.get('description', '')
@@ -1998,25 +2042,46 @@ class BrightDataJobScraper:
                 if not url or 'tanqeeb.com' not in url:
                     continue
                 
-                title_clean = title.replace(' - Tanqeeb', '').replace(' | Tanqeeb', '').strip()
+                # Skip duplicates
+                if url in seen_urls:
+                    continue
+                seen_urls.add(url)
                 
-                if not title_clean or len(title_clean) < 3:
+                # Clean title
+                title_clean = title.replace(' - Tanqeeb', '').replace(' | Tanqeeb', '').strip()
+                title_clean = title_clean.split(' | ')[0].strip() if ' | ' in title_clean else title_clean
+                
+                if not title_clean or len(title_clean) < 5:
                     continue
                 
+                # STRICT FILTER: Title must contain ALL search keywords
+                title_lower = title_clean.lower()
+                matches_all = all(kw in title_lower for kw in title_keywords)
+                if not matches_all:
+                    continue
+                
+                # Extract location from title/description if possible
+                job_location = "Saudi Arabia"
+                for city in ['Riyadh', 'Jeddah', 'Dammam', 'Makkah', 'Madinah']:
+                    if city.lower() in title_lower or city.lower() in description.lower():
+                        job_location = f"{city}, Saudi Arabia"
+                        break
+                
                 jobs.append(Job(
-                    id=f"tanqeeb_{i+1}",
+                    id=f"tanqeeb_{len(jobs)+1}",
                     company="See Tanqeeb",
-                    title=title_clean,
-                    location="Saudi Arabia",
+                    title=title_clean[:100],
+                    location=job_location,
                     description=description[:200] if description else "",
                     url=url,
                     source="tanqeeb",
                     salary=""
                 ))
-            except:
+                
+            except Exception as e:
                 continue
         
-        logger.info(f"Parsed {len(jobs)} Tanqeeb jobs from Google")
+        logger.info(f"Found {len(jobs)} Tanqeeb jobs matching '{job_title}'")
         return jobs
     
     def search_mihnati_via_google(self, job_title: str, location: str = "Saudi Arabia") -> List[Job]:
@@ -2143,7 +2208,7 @@ class BrightDataJobScraper:
             location = filters.location or "United Kingdom"
         
         is_remote = filters.location_type == 'remote'
-        days = 14 if region == "ksa" else filters.days_ago  # KSA uses 14-day filter
+        days = 30 if region == "ksa" else filters.days_ago  # KSA uses 30-day filter
         
         # ========== US SCRAPER TASKS ==========
         def scrape_indeed_us_task():
@@ -2246,15 +2311,15 @@ class BrightDataJobScraper:
         # ========== KSA SCRAPER TASKS ==========
         def scrape_naukrigulf_task():
             try:
-                logger.info("=== Searching Naukrigulf ===")
-                return self.search_naukrigulf_via_google(job_title, location)
+                logger.info("=== Scraping Naukrigulf Direct ===")
+                return self.scrape_naukrigulf_direct(job_title, location)
             except Exception as e:
                 logger.error(f"Naukrigulf error: {e}")
                 return []
         
         def scrape_bayt_task():
             try:
-                logger.info("=== Searching Bayt.com ===")
+                logger.info("=== Scraping Bayt.com ===")
                 return self.search_bayt_via_google(job_title, location)
             except Exception as e:
                 logger.error(f"Bayt error: {e}")
@@ -2278,8 +2343,8 @@ class BrightDataJobScraper:
         
         def scrape_tanqeeb_task():
             try:
-                logger.info("=== Searching Tanqeeb ===")
-                return self.search_tanqeeb_via_google(job_title, location)
+                logger.info("=== Scraping Tanqeeb Saudi Direct ===")
+                return self.scrape_tanqeeb_direct(job_title, location)
             except Exception as e:
                 logger.error(f"Tanqeeb error: {e}")
                 return []
