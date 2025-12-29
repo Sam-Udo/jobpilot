@@ -1,15 +1,15 @@
-# JobPilot - AI-Powered Job Application Platform (US + UK)
+# JobPilot - AI-Powered Job Application Platform (US + UK + KSA)
 
-JobPilot is an intelligent job search and CV optimization platform that uses Claude AI to generate tailored CVs for job applications in both the United States and United Kingdom.
+JobPilot is an intelligent job search and CV optimization platform that uses Claude AI to generate tailored CVs for job applications in the United States, United Kingdom, and Saudi Arabia.
 
 ## Version
 
-**v3-combined** - Combined US + UK job search with ATS score iteration
+**v3-combined** - Combined US + UK + KSA job search with ATS score iteration
 
 ## Features
 
-### Region Toggle (US or UK)
-Switch between US and UK job markets with one click.
+### Region Toggle (US, UK, or KSA)
+Switch between US, UK, and Saudi Arabia job markets with one click.
 
 ### US Job Search (5 Sites)
 - Indeed (indeed.com)
@@ -26,6 +26,15 @@ Switch between US and UK job markets with one click.
 - CV-Library (cv-library.co.uk)
 - TotalJobs (totaljobs.com)
 - Jobserve (jobserve.com)
+
+### KSA Job Search (7 Sites) - 14-day filter
+- Naukrigulf (naukrigulf.com)
+- Bayt.com (bayt.com)
+- GulfTalent (gulftalent.com)
+- LinkedIn Saudi Arabia
+- Tanqeeb (tanqeeb.com) - Job aggregator
+- Mihnati (mihnati.com) - Saudi portal
+- Recruitment Agencies (Hays, Robert Walters, Adecco)
 
 ### ATS Score Iteration (NEW in V3)
 - CV generation iterates until achieving **90% ATS score** or max 3 iterations

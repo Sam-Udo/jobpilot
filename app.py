@@ -1628,20 +1628,313 @@ class BrightDataJobScraper:
         return jobs
     
     # =========================================================================
-    # MAIN SEARCH FUNCTION (Handles both US and UK)
+    # KSA (SAUDI ARABIA) SCRAPERS - 14 day filter, direct job links
+    # =========================================================================
+    
+    def search_naukrigulf_via_google(self, job_title: str, location: str = "Saudi Arabia") -> List[Job]:
+        """Search Naukrigulf via Google for direct job links (URLs with -jid-)."""
+        query = f'site:naukrigulf.com "{job_title}" "{location}" -jid-'
+        
+        logger.info(f"Searching Naukrigulf via Google: {query}")
+        results = self._search_google_serp(query + " tbs=qdr:w2")  # Last 2 weeks
+        
+        jobs = []
+        for i, result in enumerate(results[:15]):
+            try:
+                title = result.get('title', '')
+                description = result.get('description', '')
+                url = result.get('link', '')
+                
+                if not url or 'naukrigulf.com' not in url:
+                    continue
+                
+                # Only include direct job pages (contain -jid-)
+                if '-jid-' not in url and '-cd-' not in url:
+                    continue
+                
+                title_clean = title.replace(' - Jobs in Saudi Arabia', '').replace(' - Naukrigulf', '').strip()
+                title_clean = title_clean.split(' - ')[0].strip() if ' - ' in title_clean else title_clean
+                
+                if not title_clean or len(title_clean) < 5:
+                    continue
+                
+                jobs.append(Job(
+                    id=f"naukrigulf_{i+1}",
+                    company="See Naukrigulf",
+                    title=title_clean,
+                    location="Saudi Arabia",
+                    description=description[:200] if description else "",
+                    url=url,
+                    source="naukrigulf",
+                    salary=""
+                ))
+            except:
+                continue
+        
+        logger.info(f"Parsed {len(jobs)} Naukrigulf jobs from Google")
+        return jobs
+    
+    def search_bayt_via_google(self, job_title: str, location: str = "Saudi Arabia") -> List[Job]:
+        """Search Bayt.com via Google for direct job links."""
+        query = f'site:bayt.com "{job_title}" "{location}"'
+        
+        logger.info(f"Searching Bayt.com via Google: {query}")
+        results = self._search_google_serp(query + " tbs=qdr:w2")  # Last 2 weeks
+        
+        jobs = []
+        for i, result in enumerate(results[:15]):
+            try:
+                title = result.get('title', '')
+                description = result.get('description', '')
+                url = result.get('link', '')
+                
+                if not url or 'bayt.com' not in url:
+                    continue
+                
+                # Skip search results pages, only want job detail pages
+                if '/jobs/' in url and url.count('/') > 5:  # Detail pages have more path segments
+                    pass
+                elif 'job-' in url or '/jobs/' not in url:
+                    continue
+                
+                title_clean = title.replace(' - Bayt.com', '').replace('Jobs in Saudi Arabia', '').strip()
+                title_clean = title_clean.split(' | ')[0].strip() if ' | ' in title_clean else title_clean
+                title_clean = title_clean.split('(')[0].strip() if '(' in title_clean else title_clean
+                
+                if not title_clean or len(title_clean) < 5:
+                    continue
+                
+                jobs.append(Job(
+                    id=f"bayt_{i+1}",
+                    company="See Bayt",
+                    title=title_clean,
+                    location="Saudi Arabia",
+                    description=description[:200] if description else "",
+                    url=url,
+                    source="bayt",
+                    salary=""
+                ))
+            except:
+                continue
+        
+        logger.info(f"Parsed {len(jobs)} Bayt jobs from Google")
+        return jobs
+    
+    def search_gulftalent_via_google(self, job_title: str, location: str = "Saudi Arabia") -> List[Job]:
+        """Search GulfTalent via Google for direct job links (URLs with job IDs)."""
+        query = f'site:gulftalent.com/saudi-arabia/jobs "{job_title}"'
+        
+        logger.info(f"Searching GulfTalent via Google: {query}")
+        results = self._search_google_serp(query + " tbs=qdr:w2")  # Last 2 weeks
+        
+        jobs = []
+        for i, result in enumerate(results[:15]):
+            try:
+                title = result.get('title', '')
+                description = result.get('description', '')
+                url = result.get('link', '')
+                
+                if not url or 'gulftalent.com' not in url:
+                    continue
+                
+                # Only include direct job pages (have numeric ID at end)
+                if '/jobs/' not in url:
+                    continue
+                # Check if URL ends with a job ID (numbers)
+                url_parts = url.rstrip('/').split('-')
+                if not url_parts[-1].isdigit():
+                    continue
+                
+                title_clean = title.replace(' | GulfTalent', '').replace(' Jobs in Saudi Arabia', '').strip()
+                title_clean = title_clean.split(' | ')[0].strip() if ' | ' in title_clean else title_clean
+                
+                if not title_clean or len(title_clean) < 5:
+                    continue
+                
+                jobs.append(Job(
+                    id=f"gulftalent_{i+1}",
+                    company="See GulfTalent",
+                    title=title_clean,
+                    location="Saudi Arabia",
+                    description=description[:200] if description else "",
+                    url=url,
+                    source="gulftalent",
+                    salary=""
+                ))
+            except:
+                continue
+        
+        logger.info(f"Parsed {len(jobs)} GulfTalent jobs from Google")
+        return jobs
+    
+    def scrape_linkedin_ksa(self, job_title: str, location: str = "Saudi Arabia", remote: bool = False, days: int = 14) -> List[Job]:
+        """Scrape LinkedIn for Saudi Arabia jobs."""
+        all_jobs = []
+        query = quote_plus(job_title)
+        loc = quote_plus(location)
+        
+        for page in range(2):  # 2 pages
+            start = page * 25
+            # LinkedIn with Saudi Arabia location, past 2 weeks filter
+            url = f"https://www.linkedin.com/jobs/search/?keywords={query}&location={loc}&start={start}&f_TPR=r1209600"
+            if remote:
+                url += "&f_WT=2"  # Remote filter
+            
+            logger.info(f"Scraping LinkedIn KSA page {page+1}: {url}")
+            
+            html = self._fetch_via_brightdata(url)
+            if not html:
+                html = self._fetch_direct(url)
+            
+            if html:
+                jobs = self._parse_linkedin_html(html, url)
+                for j in jobs:
+                    j.source = "linkedin_ksa"
+                    j.location = "Saudi Arabia"
+                all_jobs.extend(jobs)
+                logger.info(f"LinkedIn KSA page {page+1}: {len(jobs)} jobs")
+        
+        logger.info(f"Scraped {len(all_jobs)} total jobs from LinkedIn KSA")
+        return all_jobs
+    
+    def search_tanqeeb_via_google(self, job_title: str, location: str = "Saudi Arabia") -> List[Job]:
+        """Search Tanqeeb (job aggregator) via Google."""
+        query = f'site:tanqeeb.com "{job_title}" "{location}"'
+        
+        logger.info(f"Searching Tanqeeb via Google: {query}")
+        results = self._search_google_serp(query + " tbs=qdr:w2")
+        
+        jobs = []
+        for i, result in enumerate(results[:10]):
+            try:
+                title = result.get('title', '')
+                description = result.get('description', '')
+                url = result.get('link', '')
+                
+                if not url or 'tanqeeb.com' not in url:
+                    continue
+                
+                title_clean = title.replace(' - Tanqeeb', '').strip()
+                
+                if not title_clean or len(title_clean) < 5:
+                    continue
+                
+                jobs.append(Job(
+                    id=f"tanqeeb_{i+1}",
+                    company="See Tanqeeb",
+                    title=title_clean,
+                    location="Saudi Arabia",
+                    description=description[:200] if description else "",
+                    url=url,
+                    source="tanqeeb",
+                    salary=""
+                ))
+            except:
+                continue
+        
+        logger.info(f"Parsed {len(jobs)} Tanqeeb jobs from Google")
+        return jobs
+    
+    def search_mihnati_via_google(self, job_title: str, location: str = "Saudi Arabia") -> List[Job]:
+        """Search Mihnati (Saudi job portal) via Google."""
+        query = f'site:mihnati.com "{job_title}"'
+        
+        logger.info(f"Searching Mihnati via Google: {query}")
+        results = self._search_google_serp(query + " tbs=qdr:w2")
+        
+        jobs = []
+        for i, result in enumerate(results[:10]):
+            try:
+                title = result.get('title', '')
+                description = result.get('description', '')
+                url = result.get('link', '')
+                
+                if not url or 'mihnati.com' not in url:
+                    continue
+                
+                title_clean = title.replace(' - Mihnati', '').strip()
+                
+                if not title_clean or len(title_clean) < 5:
+                    continue
+                
+                jobs.append(Job(
+                    id=f"mihnati_{i+1}",
+                    company="See Mihnati",
+                    title=title_clean,
+                    location="Saudi Arabia",
+                    description=description[:200] if description else "",
+                    url=url,
+                    source="mihnati",
+                    salary=""
+                ))
+            except:
+                continue
+        
+        logger.info(f"Parsed {len(jobs)} Mihnati jobs from Google")
+        return jobs
+    
+    def search_recruitment_agencies_ksa(self, job_title: str) -> List[Job]:
+        """Search major recruitment agencies (Hays, Robert Walters, Adecco) for KSA jobs."""
+        agencies = [
+            ('hays.com.sa', 'hays'),
+            ('robertwalters.com', 'robertwalters'),
+            ('adecco.com.sa', 'adecco')
+        ]
+        
+        all_jobs = []
+        for site, source_name in agencies:
+            query = f'site:{site} "{job_title}" "Saudi Arabia"'
+            logger.info(f"Searching {source_name}: {query}")
+            
+            try:
+                results = self._search_google_serp(query + " tbs=qdr:w2")
+                
+                for i, result in enumerate(results[:5]):
+                    title = result.get('title', '')
+                    description = result.get('description', '')
+                    url = result.get('link', '')
+                    
+                    if not url:
+                        continue
+                    
+                    title_clean = title.split(' | ')[0].strip() if ' | ' in title else title.strip()
+                    
+                    if not title_clean or len(title_clean) < 5:
+                        continue
+                    
+                    all_jobs.append(Job(
+                        id=f"{source_name}_{i+1}",
+                        company=source_name.capitalize(),
+                        title=title_clean,
+                        location="Saudi Arabia",
+                        description=description[:200] if description else "",
+                        url=url,
+                        source=source_name,
+                        salary=""
+                    ))
+            except Exception as e:
+                logger.error(f"Error searching {source_name}: {e}")
+                continue
+        
+        logger.info(f"Found {len(all_jobs)} jobs from recruitment agencies")
+        return all_jobs
+    
+    # =========================================================================
+    # MAIN SEARCH FUNCTION (Handles US, UK, and KSA)
     # =========================================================================
     
     def search_jobs(self, filters: 'SearchFilters', fast_mode: bool = False) -> List[Job]:
         """
         Search for jobs across multiple sources in PARALLEL for speed.
-        Supports both US and UK regions.
+        Supports US, UK, and KSA (Saudi Arabia) regions.
         
         Args:
             filters: Search filters (job titles, location, region, etc.)
-            fast_mode: If True, only scrape the 2 fastest sources
+            fast_mode: If True, only scrape the 2-3 fastest sources
         
         US Sources (5): Indeed, LinkedIn, Glassdoor, Dice, ZipRecruiter
         UK Sources (7): Indeed UK, LinkedIn, Reed, CV-Library, TotalJobs, Glassdoor UK, Jobserve
+        KSA Sources (7): Naukrigulf, Bayt, GulfTalent, LinkedIn KSA, Tanqeeb, Mihnati, Agencies
         """
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import time
@@ -1654,11 +1947,13 @@ class BrightDataJobScraper:
         # Set default location based on region
         if region == "us":
             location = filters.location or "United States"
+        elif region == "ksa":
+            location = filters.location or "Saudi Arabia"
         else:
             location = filters.location or "United Kingdom"
         
         is_remote = filters.location_type == 'remote'
-        days = filters.days_ago
+        days = 14 if region == "ksa" else filters.days_ago  # KSA uses 14-day filter
         
         # ========== US SCRAPER TASKS ==========
         def scrape_indeed_us_task():
@@ -1758,6 +2053,63 @@ class BrightDataJobScraper:
                 logger.error(f"Jobserve error: {e}")
                 return []
         
+        # ========== KSA SCRAPER TASKS ==========
+        def scrape_naukrigulf_task():
+            try:
+                logger.info("=== Searching Naukrigulf ===")
+                return self.search_naukrigulf_via_google(job_title, location)
+            except Exception as e:
+                logger.error(f"Naukrigulf error: {e}")
+                return []
+        
+        def scrape_bayt_task():
+            try:
+                logger.info("=== Searching Bayt.com ===")
+                return self.search_bayt_via_google(job_title, location)
+            except Exception as e:
+                logger.error(f"Bayt error: {e}")
+                return []
+        
+        def scrape_gulftalent_task():
+            try:
+                logger.info("=== Searching GulfTalent ===")
+                return self.search_gulftalent_via_google(job_title, location)
+            except Exception as e:
+                logger.error(f"GulfTalent error: {e}")
+                return []
+        
+        def scrape_linkedin_ksa_task():
+            try:
+                logger.info("=== Scraping LinkedIn KSA ===")
+                return self.scrape_linkedin_ksa(job_title, location, is_remote, days)
+            except Exception as e:
+                logger.error(f"LinkedIn KSA error: {e}")
+                return []
+        
+        def scrape_tanqeeb_task():
+            try:
+                logger.info("=== Searching Tanqeeb ===")
+                return self.search_tanqeeb_via_google(job_title, location)
+            except Exception as e:
+                logger.error(f"Tanqeeb error: {e}")
+                return []
+        
+        def scrape_mihnati_task():
+            try:
+                logger.info("=== Searching Mihnati ===")
+                return self.search_mihnati_via_google(job_title, location)
+            except Exception as e:
+                logger.error(f"Mihnati error: {e}")
+                return []
+        
+        def scrape_agencies_ksa_task():
+            try:
+                logger.info("=== Searching KSA Recruitment Agencies ===")
+                return self.search_recruitment_agencies_ksa(job_title)
+            except Exception as e:
+                logger.error(f"Agencies error: {e}")
+                return []
+        
         # Choose tasks based on region and mode
         if region == "us":
             if fast_mode:
@@ -1772,6 +2124,21 @@ class BrightDataJobScraper:
                     scrape_ziprecruiter_task
                 ]
                 logger.info("US Full mode: Scraping all 5 US sources in parallel")
+        elif region == "ksa":
+            if fast_mode:
+                tasks = [scrape_naukrigulf_task, scrape_bayt_task, scrape_linkedin_ksa_task]
+                logger.info("KSA Fast mode: Scraping Naukrigulf, Bayt, LinkedIn only")
+            else:
+                tasks = [
+                    scrape_naukrigulf_task,
+                    scrape_bayt_task,
+                    scrape_gulftalent_task,
+                    scrape_linkedin_ksa_task,
+                    scrape_tanqeeb_task,
+                    scrape_mihnati_task,
+                    scrape_agencies_ksa_task
+                ]
+                logger.info("KSA Full mode: Scraping all 7 KSA sources in parallel")
         else:
             # UK (default)
             if fast_mode:

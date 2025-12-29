@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JobPilot - AI Job Search (US + UK)</title>
+    <title>JobPilot - AI Job Search (US + UK + KSA)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -384,14 +384,18 @@
             <p class="subtitle" id="subtitle">Search US jobs across Indeed, LinkedIn, Glassdoor, Dice & ZipRecruiter</p>
             
             <!-- Region Toggle -->
-            <div style="margin-top: 1rem; display: flex; justify-content: center; gap: 0.5rem;">
+            <div style="margin-top: 1rem; display: flex; justify-content: center; gap: 0.5rem; flex-wrap: wrap;">
                 <button class="btn region-btn active" id="btn-us" onclick="setRegion('us')" 
-                        style="padding: 0.5rem 1.5rem; border-radius: 20px;">
-                    🇺🇸 US Jobs
+                        style="padding: 0.5rem 1.25rem; border-radius: 20px;">
+                    🇺🇸 US
                 </button>
                 <button class="btn region-btn" id="btn-uk" onclick="setRegion('uk')"
-                        style="padding: 0.5rem 1.5rem; border-radius: 20px; background: #334155;">
-                    🇬🇧 UK Jobs
+                        style="padding: 0.5rem 1.25rem; border-radius: 20px; background: #334155;">
+                    🇬🇧 UK
+                </button>
+                <button class="btn region-btn" id="btn-ksa" onclick="setRegion('ksa')"
+                        style="padding: 0.5rem 1.25rem; border-radius: 20px; background: #334155;">
+                    🇸🇦 KSA
                 </button>
             </div>
         </header>
@@ -463,16 +467,24 @@
             // Update button styles
             document.getElementById('btn-us').classList.toggle('active', region === 'us');
             document.getElementById('btn-uk').classList.toggle('active', region === 'uk');
+            document.getElementById('btn-ksa').classList.toggle('active', region === 'ksa');
             document.getElementById('btn-us').style.background = region === 'us' ? '#6366f1' : '#334155';
             document.getElementById('btn-uk').style.background = region === 'uk' ? '#6366f1' : '#334155';
+            document.getElementById('btn-ksa').style.background = region === 'ksa' ? '#6366f1' : '#334155';
             
-            // Update header
+            // Update header based on region
             if (region === 'us') {
                 document.getElementById('main-title').innerHTML = '🇺🇸 JobPilot US';
                 document.getElementById('subtitle').textContent = 'Search US jobs across Indeed, LinkedIn, Glassdoor, Dice & ZipRecruiter';
                 document.getElementById('search-input').placeholder = 'e.g. remote data engineer jobs in Texas';
                 document.getElementById('fast-mode-label').textContent = 'Fast search (Indeed + LinkedIn only)';
                 document.getElementById('fast-mode-hint').textContent = '| Uncheck for all 5 US sites (slower)';
+            } else if (region === 'ksa') {
+                document.getElementById('main-title').innerHTML = '🇸🇦 JobPilot KSA';
+                document.getElementById('subtitle').textContent = 'Search Saudi Arabia jobs across Naukrigulf, Bayt, GulfTalent, LinkedIn, Tanqeeb, Mihnati & Agencies';
+                document.getElementById('search-input').placeholder = 'e.g. data engineer jobs in Riyadh';
+                document.getElementById('fast-mode-label').textContent = 'Fast search (Naukrigulf + Bayt + LinkedIn only)';
+                document.getElementById('fast-mode-hint').textContent = '| Uncheck for all 7 KSA sites (slower) | 14-day filter';
             } else {
                 document.getElementById('main-title').innerHTML = '🇬🇧 JobPilot UK';
                 document.getElementById('subtitle').textContent = 'Search UK jobs across Indeed, LinkedIn, Reed, CV-Library, TotalJobs, Glassdoor & Jobserve';
@@ -558,6 +570,10 @@
                 loadingMsg = fastMode 
                     ? 'Searching 2 US sites (Indeed + LinkedIn) — approx 10-15 seconds...' 
                     : 'Searching 5 US sites (Indeed, LinkedIn, Glassdoor, Dice, ZipRecruiter) — approx 25-35 seconds...';
+            } else if (currentRegion === 'ksa') {
+                loadingMsg = fastMode 
+                    ? 'Searching 3 KSA sites (Naukrigulf + Bayt + LinkedIn) — approx 15-20 seconds...' 
+                    : 'Searching 7 KSA sites (Naukrigulf, Bayt, GulfTalent, LinkedIn, Tanqeeb, Mihnati, Agencies) — approx 30-45 seconds...';
             } else {
                 loadingMsg = fastMode 
                     ? 'Searching 2 UK sites (Indeed UK + LinkedIn) — approx 10-15 seconds...' 
