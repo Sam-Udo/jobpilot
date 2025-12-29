@@ -441,6 +441,7 @@
         let allJobs = [];
         let currentFilters = {};
         let generatingJobId = null;
+        let searchFastMode = false; // Store the fast_mode used for current search results
 
         function showMessage(text, type = 'info') {
             const box = document.getElementById('message-box');
@@ -509,6 +510,7 @@
             }
 
             const fastMode = document.getElementById('fast-mode').checked;
+            searchFastMode = fastMode; // Store for pagination
             currentPage = 1;
             
             const loadingMsg = fastMode 
@@ -662,11 +664,11 @@
 
             try {
                 const query = document.getElementById('search-input').value.trim();
-                const fastMode = document.getElementById('fast-mode').checked;
+                // Use the same fast_mode that was used for the original search
                 const res = await fetch('/api/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query, user_id: userId, page: currentPage, fast_mode: fastMode })
+                    body: JSON.stringify({ query, user_id: userId, page: currentPage, fast_mode: searchFastMode })
                 });
 
                 const data = await res.json();
