@@ -607,7 +607,7 @@ class BrightDataJobScraper:
         return self.parse_google_results_ziprecruiter(results, is_remote=remote)
     
     def scrape_indeed(self, job_title: str, location: str, remote: bool = False, days: int = 30) -> List[Job]:
-        """Scrape Indeed UK for jobs - using the exact job title from NLU."""
+        """Scrape Indeed UK for jobs - with Google fallback if direct scrape fails."""
         all_jobs = []
         
         # Use exact job title from user's search (via NLU)
@@ -636,8 +636,74 @@ class BrightDataJobScraper:
                 logger.warning(f"Failed to fetch Indeed page {page+1}")
                 break
         
-        logger.info(f"Scraped {len(all_jobs)} total jobs from Indeed")
+        # If direct scrape failed or returned 0 jobs, try Google fallback
+        if not all_jobs:
+            logger.info("Indeed UK direct scrape failed, trying Google fallback...")
+            all_jobs = self.search_indeed_uk_via_google(job_title, location, remote)
+        
+        logger.info(f"Scraped {len(all_jobs)} total jobs from Indeed UK")
         return all_jobs
+    
+    def search_indeed_uk_via_google(self, job_title: str, location: str, remote: bool = False) -> List[Job]:
+        """Search Indeed UK jobs via Google when direct scrape fails."""
+        query = f'site:uk.indeed.com "{job_title}" {location}'
+        if remote:
+            query += ' remote'
+        
+        logger.info(f"Searching Indeed UK via Google: {query}")
+        results = self._search_google_serp(query)
+        return self._parse_indeed_google_results(results, is_remote=remote)
+    
+    def _parse_indeed_google_results(self, google_results: List[dict], is_remote: bool = False) -> List[Job]:
+        """Parse Google search results for Indeed UK jobs."""
+        jobs = []
+        
+        for i, result in enumerate(google_results[:20]):
+            try:
+                title = result.get('title', '')
+                description = result.get('description', '')
+                url = result.get('link', '')
+                
+                if not url or 'uk.indeed.com' not in url:
+                    continue
+                
+                # Skip search result pages, only want job pages
+                if '/jobs?' in url or '/q-' in url:
+                    continue
+                
+                # Clean title - remove "- Indeed" suffix
+                title_clean = title.replace(' - Indeed', '').replace(' | Indeed', '').strip()
+                
+                # Try to extract company from title (usually "Job Title - Company")
+                parts = title_clean.split(' - ')
+                if len(parts) >= 2:
+                    job_title = parts[0].strip()
+                    company = parts[1].strip()
+                else:
+                    job_title = title_clean
+                    company = "See Indeed"
+                
+                if not job_title or len(job_title) < 5:
+                    continue
+                
+                # Extract location from description if possible
+                location = "UK"
+                
+                jobs.append(Job(
+                    id=f"indeed_google_{i+1}",
+                    company=company,
+                    title=job_title,
+                    location=location,
+                    description=description[:300] if description else "",
+                    url=url,
+                    source="indeed",
+                    salary=""
+                ))
+            except:
+                continue
+        
+        logger.info(f"Parsed {len(jobs)} Indeed UK jobs from Google results")
+        return jobs
     
     def _parse_indeed_html(self, html: str, source_url: str) -> List[Job]:
         """Parse Indeed HTML to extract job listings."""
@@ -1531,61 +1597,73 @@ class BrightDataJobScraper:
     def _filter_jobs_by_search(self, jobs: List[Job], search_title: str, filters: 'SearchFilters') -> List[Job]:
         """
         Filter jobs to only include those that match the user's search terms.
-        Checks job title and description against search keywords.
+        Smart filtering: relaxes criteria if too strict.
         """
         if not jobs:
+            return jobs
+        
+        # If we only have a few jobs, don't filter - show what we have
+        if len(jobs) <= 5:
+            logger.info(f"Only {len(jobs)} jobs found, skipping filter to show all results")
             return jobs
         
         # Extract keywords from search
         search_lower = search_title.lower()
         
-        # Split into individual keywords (e.g., "data engineer ir35" -> ["data", "engineer", "ir35"])
+        # Split into individual keywords
         keywords = [w.strip() for w in search_lower.split() if len(w.strip()) > 2]
         
         # Check for IR35 specifically
-        has_ir35_search = 'ir35' in search_lower or 'outside ir35' in search_lower or 'inside ir35' in search_lower
+        has_ir35_search = 'ir35' in search_lower
         
         # Check for contract type
         has_contract_search = 'contract' in search_lower
+        
+        # Core keywords (job title words, not modifiers)
+        core_keywords = [k for k in keywords if k not in ['ir35', 'inside', 'outside', 'contract', 'contracts', 'remote']]
         
         filtered = []
         for job in jobs:
             job_text = f"{job.title} {job.description} {job.company}".lower()
             
-            # Must match at least the core job title keywords (not IR35/contract modifiers)
-            core_keywords = [k for k in keywords if k not in ['ir35', 'inside', 'outside', 'contract', 'contracts']]
-            
-            if not core_keywords:
-                # No specific job title, accept all
+            # Title match: at least ONE core keyword must be present
+            if core_keywords:
+                title_match = any(k in job_text for k in core_keywords)
+            else:
                 title_match = True
-            else:
-                # Check if at least half the core keywords are present
-                matches = sum(1 for k in core_keywords if k in job_text)
-                title_match = matches >= len(core_keywords) / 2
             
-            # If user searched for IR35, job must mention IR35
+            # IR35 match: if searched, prefer IR35 jobs but don't require
+            # Also match "outside ir35", "inside ir35", or just "contract" as alternatives
             if has_ir35_search:
-                ir35_match = 'ir35' in job_text or 'outside ir35' in job_text or 'inside ir35' in job_text
+                ir35_match = ('ir35' in job_text or 'contract' in job_text or 
+                             'contractor' in job_text or 'freelance' in job_text)
             else:
-                ir35_match = True  # Not required
+                ir35_match = True
             
-            # If user searched for contract, job should mention contract
+            # Contract match: relaxed
             if has_contract_search:
-                contract_match = 'contract' in job_text
+                contract_match = ('contract' in job_text or 'contractor' in job_text or 
+                                 'freelance' in job_text or 'ir35' in job_text)
             else:
-                contract_match = True  # Not required
+                contract_match = True
             
-            # Check remote if specified
+            # Remote match: if specified
             if filters.location_type == 'remote':
-                remote_match = 'remote' in job_text or 'work from home' in job_text or 'wfh' in job_text
+                remote_match = ('remote' in job_text or 'work from home' in job_text or 
+                               'wfh' in job_text or 'hybrid' in job_text or 
+                               'home based' in job_text)
             else:
-                remote_match = True  # Not required
+                remote_match = True
             
-            # Job must pass all required filters
+            # Job must pass filters
             if title_match and ir35_match and contract_match and remote_match:
                 filtered.append(job)
-            else:
-                logger.debug(f"Filtered out: {job.title} (title={title_match}, ir35={ir35_match}, contract={contract_match}, remote={remote_match})")
+        
+        # If filtering removed too many jobs, return more results
+        if len(filtered) < 3 and len(jobs) > 10:
+            logger.info(f"Filter too strict ({len(filtered)} results), relaxing to title-only filter")
+            # Fall back to just title matching
+            filtered = [j for j in jobs if any(k in f"{j.title} {j.description}".lower() for k in core_keywords)] if core_keywords else jobs
         
         return filtered
 
