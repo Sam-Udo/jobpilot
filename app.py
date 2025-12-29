@@ -1,12 +1,17 @@
 """
-JobPilot v3 - Full Bright Data MCP Integration
+JobPilot v3 - Combined US + UK Job Search
 
 Features:
+- US/UK region toggle - search jobs in either country
 - CV format preservation (same sections, layout, fonts)
 - Real job search via Bright Data MCP
+- ATS Score iteration - regenerate CV until 90%+ ATS score
 - Search results caching by NLU terms
 - Pagination (10 per page)
 - Per-job Generate CV, Download, and Apply buttons
+
+US Job Sites: Indeed, LinkedIn, Glassdoor, Dice, ZipRecruiter
+UK Job Sites: Indeed UK, LinkedIn, Reed, CV-Library, TotalJobs, Glassdoor UK, Jobserve
 """
 
 import os
@@ -64,11 +69,12 @@ class SearchFilters:
     location_type: str = "any"
     location: str = ""
     days_ago: int = 30
+    region: str = "uk"  # 'us' or 'uk'
     
     def cache_key(self, fast_mode: bool = True) -> str:
-        """Generate cache key from filters. Includes fast_mode to separate caches."""
+        """Generate cache key from filters. Includes fast_mode and region to separate caches."""
         mode = "fast" if fast_mode else "full"
-        key_str = f"{'-'.join(sorted(self.job_titles))}_{self.location_type}_{self.location}_{self.days_ago}_{mode}"
+        key_str = f"{self.region}_{'-'.join(sorted(self.job_titles))}_{self.location_type}_{self.location}_{self.days_ago}_{mode}"
         return hashlib.md5(key_str.encode()).hexdigest()
 
 @dataclass
@@ -1444,18 +1450,198 @@ class BrightDataJobScraper:
         logger.info(f"Parsed {len(jobs)} Jobserve jobs from Google results")
         return jobs
     
+    # =========================================================================
+    # US SCRAPERS
+    # =========================================================================
+    
+    def scrape_indeed_us(self, job_title: str, location: str, remote: bool = False, days: int = 30) -> List[Job]:
+        """Scrape Indeed US for jobs."""
+        all_jobs = []
+        query = quote_plus(job_title)
+        loc = quote_plus(location)
+        
+        for page in range(1):  # 1 page for reliability
+            start = page * 10
+            url = f"https://www.indeed.com/jobs?q={query}&l={loc}&fromage={days}&start={start}"
+            if remote:
+                url += "&remotejob=1"
+            
+            logger.info(f"Scraping Indeed US '{job_title}' page {page+1}")
+            
+            html = self._fetch_via_brightdata(url)
+            if not html:
+                html = self._fetch_direct(url)
+            
+            if html:
+                jobs = self._parse_indeed_html(html, url)
+                # Mark as US source
+                for j in jobs:
+                    j.source = "indeed_us"
+                all_jobs.extend(jobs)
+                logger.info(f"Indeed US page {page+1}: {len(jobs)} jobs")
+        
+        logger.info(f"Scraped {len(all_jobs)} total jobs from Indeed US")
+        return all_jobs
+    
+    def scrape_glassdoor_us(self, job_title: str, location: str, remote: bool = False, days: int = 30) -> List[Job]:
+        """Scrape Glassdoor US for jobs."""
+        jobs = []
+        query = quote_plus(job_title)
+        
+        # US state location IDs for Glassdoor
+        us_location_ids = {
+            'texas': '1347765', 'tx': '1347765',
+            'california': '1347774', 'ca': '1347774',
+            'new york': '1347747', 'ny': '1347747',
+            'florida': '1347766', 'fl': '1347766',
+            'washington': '1347763', 'wa': '1347763',
+            'massachusetts': '1347783', 'ma': '1347783',
+            'colorado': '1347773', 'co': '1347773',
+            'illinois': '1347769', 'il': '1347769',
+            'georgia': '1347768', 'ga': '1347768',
+            'united states': '1', 'usa': '1', 'us': '1',
+        }
+        
+        loc_lower = location.lower()
+        loc_id = us_location_ids.get(loc_lower, '1')  # Default to US
+        
+        url = f"https://www.glassdoor.com/Job/jobs.htm?sc.keyword={query}&locT=S&locId={loc_id}&fromAge={days}"
+        if remote:
+            url += "&remoteWorkType=1"
+        
+        logger.info(f"Scraping Glassdoor US: {url}")
+        
+        html = self._fetch_via_brightdata(url)
+        if not html:
+            html = self._fetch_direct(url)
+        
+        if html:
+            jobs = self._parse_glassdoor_html(html, url, location, remote)
+            for j in jobs:
+                j.source = "glassdoor_us"
+            logger.info(f"Scraped {len(jobs)} jobs from Glassdoor US")
+        
+        return jobs
+    
+    def search_dice_via_google(self, job_title: str, location: str, remote: bool = False) -> List[Job]:
+        """Search Dice US jobs via Google SERP."""
+        query = f'site:dice.com/job-detail "{job_title}" {location}'
+        if remote:
+            query += ' remote'
+        query += ' tbs=qdr:m'  # Past month
+        
+        logger.info(f"Searching Dice via Google: {query}")
+        results = self._search_google_serp(query)
+        return self._parse_dice_google_results(results, is_remote=remote)
+    
+    def _parse_dice_google_results(self, google_results: List[dict], is_remote: bool = False) -> List[Job]:
+        """Parse Google search results for Dice jobs."""
+        jobs = []
+        
+        for i, result in enumerate(google_results[:20]):
+            try:
+                title = result.get('title', '')
+                description = result.get('description', '')
+                url = result.get('link', '')
+                
+                if not url or 'dice.com' not in url:
+                    continue
+                
+                # Only include job-detail pages
+                if '/job-detail/' not in url:
+                    continue
+                
+                title_clean = title.replace(' - Dice.com', '').replace(' | Dice', '').strip()
+                
+                if not title_clean or len(title_clean) < 5:
+                    continue
+                
+                # Filter onsite if searching for remote
+                if is_remote:
+                    combined = (title + ' ' + description).lower()
+                    if 'on-site' in combined or 'onsite' in combined:
+                        continue
+                
+                jobs.append(Job(
+                    id=f"dice_{i+1}",
+                    company="See Dice",
+                    title=title_clean,
+                    location="US",
+                    description=description[:200] if description else "",
+                    url=url,
+                    source="dice",
+                    salary=""
+                ))
+            except:
+                continue
+        
+        logger.info(f"Parsed {len(jobs)} Dice jobs from Google results")
+        return jobs
+    
+    def search_ziprecruiter_via_google(self, job_title: str, location: str, remote: bool = False) -> List[Job]:
+        """Search ZipRecruiter US jobs via Google SERP."""
+        query = f'site:ziprecruiter.com/c/ "{job_title}" {location} -site:ziprecruiter.co.uk'
+        if remote:
+            query += ' remote'
+        query += ' tbs=qdr:m'  # Past month
+        
+        logger.info(f"Searching ZipRecruiter via Google: {query}")
+        results = self._search_google_serp(query)
+        return self._parse_ziprecruiter_google_results(results, is_remote=remote)
+    
+    def _parse_ziprecruiter_google_results(self, google_results: List[dict], is_remote: bool = False) -> List[Job]:
+        """Parse Google search results for ZipRecruiter jobs."""
+        jobs = []
+        
+        for i, result in enumerate(google_results[:20]):
+            try:
+                title = result.get('title', '')
+                description = result.get('description', '')
+                url = result.get('link', '')
+                
+                if not url or 'ziprecruiter.com' not in url:
+                    continue
+                
+                # Exclude UK domain
+                if 'ziprecruiter.co.uk' in url:
+                    continue
+                
+                title_clean = title.replace(' - ZipRecruiter', '').replace(' | ZipRecruiter', '').strip()
+                
+                if not title_clean or len(title_clean) < 5:
+                    continue
+                
+                jobs.append(Job(
+                    id=f"ziprecruiter_{i+1}",
+                    company="See ZipRecruiter",
+                    title=title_clean,
+                    location="US",
+                    description=description[:200] if description else "",
+                    url=url,
+                    source="ziprecruiter",
+                    salary=""
+                ))
+            except:
+                continue
+        
+        logger.info(f"Parsed {len(jobs)} ZipRecruiter jobs from Google results")
+        return jobs
+    
+    # =========================================================================
+    # MAIN SEARCH FUNCTION (Handles both US and UK)
+    # =========================================================================
+    
     def search_jobs(self, filters: 'SearchFilters', fast_mode: bool = False) -> List[Job]:
         """
-        Search for UK jobs across multiple sources in PARALLEL for speed.
+        Search for jobs across multiple sources in PARALLEL for speed.
+        Supports both US and UK regions.
         
         Args:
-            filters: Search filters (job titles, location, etc.)
-            fast_mode: If True, only scrape the 2 fastest sources (Indeed UK, LinkedIn)
+            filters: Search filters (job titles, location, region, etc.)
+            fast_mode: If True, only scrape the 2 fastest sources
         
-        UK Sources:
-            - Indeed UK, LinkedIn, Glassdoor UK (direct scrape)
-            - Reed, CV-Library, TotalJobs (direct scrape)
-            - Jobserve (via Google SERP - JS-heavy)
+        US Sources (5): Indeed, LinkedIn, Glassdoor, Dice, ZipRecruiter
+        UK Sources (7): Indeed UK, LinkedIn, Reed, CV-Library, TotalJobs, Glassdoor UK, Jobserve
         """
         from concurrent.futures import ThreadPoolExecutor, as_completed
         import time
@@ -1463,12 +1649,60 @@ class BrightDataJobScraper:
         start_time = time.time()
         all_jobs = []
         job_title = ' '.join(filters.job_titles) if filters.job_titles else "Data Engineer"
-        location = filters.location or "United Kingdom"  # Default to UK
+        region = filters.region.lower() if hasattr(filters, 'region') else "uk"
+        
+        # Set default location based on region
+        if region == "us":
+            location = filters.location or "United States"
+        else:
+            location = filters.location or "United Kingdom"
+        
         is_remote = filters.location_type == 'remote'
         days = filters.days_ago
         
-        # Define UK scraper tasks
-        def scrape_indeed_task():
+        # ========== US SCRAPER TASKS ==========
+        def scrape_indeed_us_task():
+            try:
+                logger.info("=== Scraping Indeed US ===")
+                return self.scrape_indeed_us(job_title, location, is_remote, days)
+            except Exception as e:
+                logger.error(f"Indeed US error: {e}")
+                return []
+        
+        def scrape_linkedin_us_task():
+            try:
+                logger.info("=== Scraping LinkedIn US ===")
+                return self.scrape_linkedin(job_title, location, is_remote, days)
+            except Exception as e:
+                logger.error(f"LinkedIn US error: {e}")
+                return []
+        
+        def scrape_glassdoor_us_task():
+            try:
+                logger.info("=== Scraping Glassdoor US ===")
+                return self.scrape_glassdoor_us(job_title, location, is_remote, days)
+            except Exception as e:
+                logger.error(f"Glassdoor US error: {e}")
+                return []
+        
+        def scrape_dice_task():
+            try:
+                logger.info("=== Searching Dice via Google ===")
+                return self.search_dice_via_google(job_title, location, is_remote)
+            except Exception as e:
+                logger.error(f"Dice error: {e}")
+                return []
+        
+        def scrape_ziprecruiter_task():
+            try:
+                logger.info("=== Searching ZipRecruiter via Google ===")
+                return self.search_ziprecruiter_via_google(job_title, location, is_remote)
+            except Exception as e:
+                logger.error(f"ZipRecruiter error: {e}")
+                return []
+        
+        # ========== UK SCRAPER TASKS ==========
+        def scrape_indeed_uk_task():
             try:
                 logger.info("=== Scraping Indeed UK ===")
                 return self.scrape_indeed(job_title, location, is_remote, days)
@@ -1476,15 +1710,15 @@ class BrightDataJobScraper:
                 logger.error(f"Indeed UK error: {e}")
                 return []
         
-        def scrape_linkedin_task():
+        def scrape_linkedin_uk_task():
             try:
                 logger.info("=== Scraping LinkedIn UK ===")
                 return self.scrape_linkedin(job_title, location, is_remote, days)
             except Exception as e:
-                logger.error(f"LinkedIn error: {e}")
+                logger.error(f"LinkedIn UK error: {e}")
                 return []
         
-        def scrape_glassdoor_task():
+        def scrape_glassdoor_uk_task():
             try:
                 logger.info("=== Scraping Glassdoor UK ===")
                 return self.scrape_glassdoor(job_title, location, is_remote, days)
@@ -1524,23 +1758,36 @@ class BrightDataJobScraper:
                 logger.error(f"Jobserve error: {e}")
                 return []
         
-        # Choose tasks based on mode
-        if fast_mode:
-            # Fast mode: Only Indeed UK and LinkedIn (fastest sources)
-            tasks = [scrape_indeed_task, scrape_linkedin_task]
-            logger.info("Fast mode: Scraping Indeed UK and LinkedIn only")
+        # Choose tasks based on region and mode
+        if region == "us":
+            if fast_mode:
+                tasks = [scrape_indeed_us_task, scrape_linkedin_us_task]
+                logger.info("US Fast mode: Scraping Indeed US and LinkedIn only")
+            else:
+                tasks = [
+                    scrape_indeed_us_task,
+                    scrape_linkedin_us_task,
+                    scrape_glassdoor_us_task,
+                    scrape_dice_task,
+                    scrape_ziprecruiter_task
+                ]
+                logger.info("US Full mode: Scraping all 5 US sources in parallel")
         else:
-            # Full mode: All 7 UK sources
-            tasks = [
-                scrape_indeed_task,
-                scrape_linkedin_task,
-                scrape_glassdoor_task,
-                scrape_reed_task,
-                scrape_cvlibrary_task,
-                scrape_totaljobs_task,
-                scrape_jobserve_task
-            ]
-            logger.info("Full mode: Scraping all 7 UK sources in parallel")
+            # UK (default)
+            if fast_mode:
+                tasks = [scrape_indeed_uk_task, scrape_linkedin_uk_task]
+                logger.info("UK Fast mode: Scraping Indeed UK and LinkedIn only")
+            else:
+                tasks = [
+                    scrape_indeed_uk_task,
+                    scrape_linkedin_uk_task,
+                    scrape_glassdoor_uk_task,
+                    scrape_reed_task,
+                    scrape_cvlibrary_task,
+                    scrape_totaljobs_task,
+                    scrape_jobserve_task
+                ]
+                logger.info("UK Full mode: Scraping all 7 UK sources in parallel")
         
         # Execute all tasks in parallel with timeout
         TIMEOUT_SECONDS = 15  # Max wait per source
@@ -2445,6 +2692,90 @@ Now begin with Section 1: COMPREHENSIVE JD ANALYSIS.
         raise
 
 
+def regenerate_cv_with_feedback(base_cv: str, cv_structure: CVStructure, job: Job, 
+                                 previous_cv: str, previous_score: int, 
+                                 improvements: List[str]) -> str:
+    """
+    Regenerate CV with feedback from previous ATS score to improve it.
+    This is called when the initial CV doesn't meet the minimum ATS score.
+    """
+    try:
+        import anthropic
+        
+        api_key = os.getenv("ANTHROPIC_API_KEY")
+        if not api_key:
+            raise ValueError("ANTHROPIC_API_KEY not set")
+        
+        client = anthropic.Anthropic(api_key=api_key)
+        
+        improvements_text = "\n".join([f"- {imp}" for imp in improvements]) if improvements else "- Improve keyword matching with job description"
+        
+        regeneration_prompt = f"""You are an expert CV optimization specialist. The previous CV generated scored {previous_score}% on ATS compatibility.
+
+The target is 90%+ ATS score. Here are the improvements needed:
+{improvements_text}
+
+TASK: Regenerate the CV with these specific improvements while maintaining the exact same format as the original CV.
+
+BASE CV (original format to preserve):
+--------------------------------------------------------------------------------
+{base_cv}
+--------------------------------------------------------------------------------
+
+PREVIOUS CV (scored {previous_score}%):
+--------------------------------------------------------------------------------
+{previous_cv[:3000]}
+--------------------------------------------------------------------------------
+
+JOB DESCRIPTION:
+--------------------------------------------------------------------------------
+**Company:** {job.company}
+**Job Title:** {job.title}
+**Location:** {job.location}
+
+{job.description}
+--------------------------------------------------------------------------------
+
+CRITICAL REQUIREMENTS:
+1. Keep the EXACT same sections and format as the BASE CV
+2. Address ALL the improvement points listed above
+3. Include MORE keywords from the job description naturally
+4. Ensure experience bullet points directly address JD requirements
+5. Quantify achievements where possible
+6. The CV must score 90%+ on ATS
+
+OUTPUT ONLY THE IMPROVED CV - no explanations, just the CV content:
+"""
+        
+        logger.info(f"Regenerating CV with feedback (previous score: {previous_score}%)")
+        
+        full_response = ""
+        with client.messages.stream(
+            model="claude-opus-4-20250514",
+            max_tokens=8192,
+            messages=[{"role": "user", "content": regeneration_prompt}]
+        ) as stream:
+            for text in stream.text_stream:
+                full_response += text
+        
+        logger.info(f"Regeneration response length: {len(full_response)} chars")
+        
+        # Clean up the response
+        cv_text = full_response.strip()
+        
+        # Remove any markdown code blocks if present
+        if cv_text.startswith("```"):
+            lines = cv_text.split('\n')
+            cv_text = '\n'.join(lines[1:-1] if lines[-1].strip() == "```" else lines[1:])
+        
+        return cv_text
+        
+    except Exception as e:
+        logger.error(f"CV regeneration error: {e}")
+        # Return previous CV if regeneration fails
+        return previous_cv
+
+
 def extract_final_cv_from_response(response_text: str) -> str:
     """
     Extract the final CV output from Claude's full framework response.
@@ -2927,10 +3258,12 @@ class SearchRequest(BaseModel):
     user_id: str
     page: int = 1
     fast_mode: bool = True  # Default to fast mode for quicker results
+    region: str = "uk"  # 'us' or 'uk'
 
 class GenerateCVRequest(BaseModel):
     user_id: str
     job_id: str
+    min_ats_score: int = 90  # Minimum ATS score required (will iterate until achieved)
 
 # =============================================================================
 # API ENDPOINTS
@@ -2970,13 +3303,14 @@ async def api_upload_cv(file: UploadFile = File(...), user_id: str = Form(...)):
 
 @app.post("/api/search")
 async def api_search(request: SearchRequest):
-    """Search for jobs - scrapes dynamically using Bright Data."""
-    logger.info(f"Search: {request.query}, page={request.page}, fast_mode={request.fast_mode}")
+    """Search for jobs - scrapes dynamically using Bright Data. Supports US and UK regions."""
+    logger.info(f"Search: {request.query}, page={request.page}, fast_mode={request.fast_mode}, region={request.region}")
     
     filters = intent_parser.parse(request.query)
+    filters.region = request.region  # Set region from request
     cache_key = filters.cache_key(fast_mode=request.fast_mode)
     
-    logger.info(f"NLU parsed: titles={filters.job_titles}, location={filters.location}, type={filters.location_type}")
+    logger.info(f"NLU parsed: titles={filters.job_titles}, location={filters.location}, type={filters.location_type}, region={request.region}")
     logger.info(f"Cache key: {cache_key}")
     
     jobs = []
@@ -3246,8 +3580,11 @@ Key Requirements (typical for this role):
 
 @app.post("/api/generate-cv")
 async def api_generate_cv(request: GenerateCVRequest):
-    """Generate CV for a specific job."""
-    logger.info(f"Generating CV for user {request.user_id}, job {request.job_id}")
+    """
+    Generate CV for a specific job with ATS score iteration.
+    Will regenerate CV until it achieves the minimum ATS score (default 90%).
+    """
+    logger.info(f"Generating CV for user {request.user_id}, job {request.job_id}, min_ats={request.min_ats_score}")
     
     session = user_sessions.get(request.user_id)
     if not session:
@@ -3275,7 +3612,64 @@ async def api_generate_cv(request: GenerateCVRequest):
     try:
         logger.info(f"Generating CV for {job.company} - {job.title}")
         logger.info(f"Job description length: {len(job.description)} chars")
-        generated_cv = generate_cv_with_claude(base_cv, cv_structure, job)
+        
+        # ===================================================================
+        # ATS SCORE ITERATION LOOP
+        # Keep generating until we hit the minimum ATS score
+        # ===================================================================
+        MAX_ITERATIONS = 3  # Maximum attempts to prevent infinite loops
+        MIN_ATS_SCORE = request.min_ats_score
+        
+        best_cv = None
+        best_score = 0
+        all_iterations = []
+        
+        for iteration in range(1, MAX_ITERATIONS + 1):
+            logger.info(f"=== CV Generation Iteration {iteration}/{MAX_ITERATIONS} ===")
+            
+            # Generate CV
+            if iteration == 1:
+                generated_cv = generate_cv_with_claude(base_cv, cv_structure, job)
+            else:
+                # For subsequent iterations, include feedback from previous score
+                generated_cv = regenerate_cv_with_feedback(
+                    base_cv, cv_structure, job, 
+                    previous_cv=best_cv, 
+                    previous_score=best_score,
+                    improvements=all_iterations[-1].get('improvements', [])
+                )
+            
+            # Calculate ATS score
+            logger.info(f"Calculating ATS score for iteration {iteration}...")
+            ats_result = calculate_ats_score(generated_cv, job.description, job.title)
+            current_score = ats_result.get('score', 0)
+            
+            logger.info(f"Iteration {iteration} ATS Score: {current_score}")
+            
+            all_iterations.append({
+                'iteration': iteration,
+                'score': current_score,
+                'improvements': ats_result.get('improvements', []),
+                'strengths': ats_result.get('strengths', [])
+            })
+            
+            # Track best CV
+            if current_score > best_score:
+                best_cv = generated_cv
+                best_score = current_score
+                best_ats_result = ats_result
+            
+            # Check if we've achieved the minimum score
+            if current_score >= MIN_ATS_SCORE:
+                logger.info(f"Achieved target ATS score of {current_score}% on iteration {iteration}")
+                break
+            else:
+                logger.info(f"Score {current_score}% below target {MIN_ATS_SCORE}%. {'Regenerating...' if iteration < MAX_ITERATIONS else 'Max iterations reached.'}")
+        
+        # Use best CV from all iterations
+        generated_cv = best_cv
+        ats_result = best_ats_result
+        final_score = best_score
         
         # Save markdown
         cv_md_path = os.path.join(DATA_DIR, f"cv_{request.user_id}_{request.job_id}.md")
@@ -3283,7 +3677,7 @@ async def api_generate_cv(request: GenerateCVRequest):
             f.write(generated_cv)
         logger.info(f"Markdown saved to {cv_md_path}")
         
-        # Generate formatted TXT file (cleaner than PDF, same visual structure)
+        # Generate formatted TXT file
         cv_txt_path = os.path.join(DATA_DIR, f"cv_{request.user_id}_{request.job_id}.txt")
         txt_success = False
         try:
@@ -3295,10 +3689,7 @@ async def api_generate_cv(request: GenerateCVRequest):
         except Exception as txt_error:
             logger.error(f"TXT generation failed: {txt_error}")
         
-        # Calculate ATS score for the generated CV
-        logger.info("Calculating ATS score...")
-        ats_result = calculate_ats_score(generated_cv, job.description, job.title)
-        logger.info(f"ATS Score: {ats_result.get('score', 'N/A')}")
+        logger.info(f"Final ATS Score: {final_score}% after {len(all_iterations)} iteration(s)")
         
         return {
             "success": True,
@@ -3308,7 +3699,11 @@ async def api_generate_cv(request: GenerateCVRequest):
             "txt_path": cv_txt_path if txt_success else None,
             "txt_success": txt_success,
             "download_url": f"/api/download-cv/{request.user_id}/{request.job_id}" if txt_success else None,
-            "ats_score": ats_result
+            "ats_score": ats_result,
+            "iterations": all_iterations,
+            "final_score": final_score,
+            "target_score": MIN_ATS_SCORE,
+            "target_achieved": final_score >= MIN_ATS_SCORE
         }
         
     except Exception as e:

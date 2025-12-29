@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JobPilot UK - AI Job Search</title>
+    <title>JobPilot - AI Job Search (US + UK)</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -380,8 +380,20 @@
 <body>
     <div class="container">
         <header>
-            <h1>🇬🇧 JobPilot UK</h1>
-            <p class="subtitle">Search UK jobs across Indeed, LinkedIn, Reed, CV-Library, TotalJobs, Glassdoor & Jobserve</p>
+            <h1 id="main-title">🇺🇸 JobPilot US</h1>
+            <p class="subtitle" id="subtitle">Search US jobs across Indeed, LinkedIn, Glassdoor, Dice & ZipRecruiter</p>
+            
+            <!-- Region Toggle -->
+            <div style="margin-top: 1rem; display: flex; justify-content: center; gap: 0.5rem;">
+                <button class="btn region-btn active" id="btn-us" onclick="setRegion('us')" 
+                        style="padding: 0.5rem 1.5rem; border-radius: 20px;">
+                    🇺🇸 US Jobs
+                </button>
+                <button class="btn region-btn" id="btn-uk" onclick="setRegion('uk')"
+                        style="padding: 0.5rem 1.5rem; border-radius: 20px; background: #334155;">
+                    🇬🇧 UK Jobs
+                </button>
+            </div>
         </header>
 
         <div id="message-box"></div>
@@ -389,8 +401,8 @@
         <section class="search-section">
             <div class="search-row">
                 <input type="text" class="search-input" id="search-input" 
-                       placeholder="e.g. remote data engineer jobs in London">
-                <button class="btn btn-primary" id="search-btn" onclick="searchJobs()">Search UK Jobs</button>
+                       placeholder="e.g. remote data engineer jobs in Texas">
+                <button class="btn btn-primary" id="search-btn" onclick="searchJobs()">Search Jobs</button>
             </div>
             <div class="upload-row">
                 <button class="upload-btn" id="upload-btn" onclick="triggerFileUpload()">
@@ -402,9 +414,9 @@
             <div class="mode-row" style="margin-top: 0.75rem; display: flex; align-items: center; gap: 0.5rem;">
                 <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; color: #94a3b8; font-size: 0.85rem;">
                     <input type="checkbox" id="fast-mode" checked style="width: 16px; height: 16px; accent-color: #6366f1;">
-                    Fast search (Indeed UK + LinkedIn only)
+                    <span id="fast-mode-label">Fast search (Indeed + LinkedIn only)</span>
                 </label>
-                <span style="color: #64748b; font-size: 0.8rem;">| Uncheck for all 7 UK sites (slower)</span>
+                <span id="fast-mode-hint" style="color: #64748b; font-size: 0.8rem;">| Uncheck for all 5 US sites (slower)</span>
             </div>
         </section>
 
@@ -442,6 +454,33 @@
         let currentFilters = {};
         let generatingJobId = null;
         let searchFastMode = false; // Store the fast_mode used for current search results
+        let currentRegion = 'us'; // 'us' or 'uk'
+        let searchRegion = 'us'; // Store the region used for current search
+
+        function setRegion(region) {
+            currentRegion = region;
+            
+            // Update button styles
+            document.getElementById('btn-us').classList.toggle('active', region === 'us');
+            document.getElementById('btn-uk').classList.toggle('active', region === 'uk');
+            document.getElementById('btn-us').style.background = region === 'us' ? '#6366f1' : '#334155';
+            document.getElementById('btn-uk').style.background = region === 'uk' ? '#6366f1' : '#334155';
+            
+            // Update header
+            if (region === 'us') {
+                document.getElementById('main-title').innerHTML = '🇺🇸 JobPilot US';
+                document.getElementById('subtitle').textContent = 'Search US jobs across Indeed, LinkedIn, Glassdoor, Dice & ZipRecruiter';
+                document.getElementById('search-input').placeholder = 'e.g. remote data engineer jobs in Texas';
+                document.getElementById('fast-mode-label').textContent = 'Fast search (Indeed + LinkedIn only)';
+                document.getElementById('fast-mode-hint').textContent = '| Uncheck for all 5 US sites (slower)';
+            } else {
+                document.getElementById('main-title').innerHTML = '🇬🇧 JobPilot UK';
+                document.getElementById('subtitle').textContent = 'Search UK jobs across Indeed, LinkedIn, Reed, CV-Library, TotalJobs, Glassdoor & Jobserve';
+                document.getElementById('search-input').placeholder = 'e.g. remote IR35 data engineer jobs in London';
+                document.getElementById('fast-mode-label').textContent = 'Fast search (Indeed UK + LinkedIn only)';
+                document.getElementById('fast-mode-hint').textContent = '| Uncheck for all 7 UK sites (slower)';
+            }
+        }
 
         function showMessage(text, type = 'info') {
             const box = document.getElementById('message-box');
@@ -511,11 +550,19 @@
 
             const fastMode = document.getElementById('fast-mode').checked;
             searchFastMode = fastMode; // Store for pagination
+            searchRegion = currentRegion; // Store for pagination
             currentPage = 1;
             
-            const loadingMsg = fastMode 
-                ? 'Searching 2 UK sites (Indeed + LinkedIn) — approx 10-15 seconds...' 
-                : 'Searching 7 UK sites (Indeed, LinkedIn, Reed, CV-Library, TotalJobs, Glassdoor, Jobserve) — approx 25-45 seconds...';
+            let loadingMsg;
+            if (currentRegion === 'us') {
+                loadingMsg = fastMode 
+                    ? 'Searching 2 US sites (Indeed + LinkedIn) — approx 10-15 seconds...' 
+                    : 'Searching 5 US sites (Indeed, LinkedIn, Glassdoor, Dice, ZipRecruiter) — approx 25-35 seconds...';
+            } else {
+                loadingMsg = fastMode 
+                    ? 'Searching 2 UK sites (Indeed UK + LinkedIn) — approx 10-15 seconds...' 
+                    : 'Searching 7 UK sites (Indeed, LinkedIn, Reed, CV-Library, TotalJobs, Glassdoor, Jobserve) — approx 25-45 seconds...';
+            }
             showLoading(loadingMsg);
             document.getElementById('search-btn').disabled = true;
 
@@ -523,7 +570,7 @@
                 const res = await fetch('/api/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query, user_id: userId, page: currentPage, fast_mode: fastMode })
+                    body: JSON.stringify({ query, user_id: userId, page: currentPage, fast_mode: fastMode, region: currentRegion })
                 });
 
                 const data = await res.json();
@@ -664,11 +711,11 @@
 
             try {
                 const query = document.getElementById('search-input').value.trim();
-                // Use the same fast_mode that was used for the original search
+                // Use the same fast_mode and region that were used for the original search
                 const res = await fetch('/api/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query, user_id: userId, page: currentPage, fast_mode: searchFastMode })
+                    body: JSON.stringify({ query, user_id: userId, page: currentPage, fast_mode: searchFastMode, region: searchRegion })
                 });
 
                 const data = await res.json();
@@ -715,63 +762,76 @@
             const genBtn = document.getElementById(`gen-${jobId}`);
             const dlBtn = document.getElementById(`dl-${jobId}`);
 
-            genBtn.textContent = 'Generating...';
+            genBtn.textContent = 'Generating (target: 90% ATS)...';
             genBtn.classList.add('generating');
             genBtn.disabled = true;
+            
+            showMessage('Generating CV with ATS optimization. This may take 1-3 minutes if iteration is needed...', 'info');
 
             try {
                 const res = await fetch('/api/generate-cv', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userId, job_id: jobId })
+                    body: JSON.stringify({ user_id: userId, job_id: jobId, min_ats_score: 90 })
                 });
 
                 const data = await res.json();
 
                 if (data.success) {
-                    genBtn.textContent = '✓ Generated';
                     genBtn.classList.remove('generating');
+                    
+                    // Check if target was achieved
+                    const finalScore = data.final_score || data.ats_score?.score || 0;
+                    const targetAchieved = data.target_achieved !== false;
+                    const iterations = data.iterations?.length || 1;
+                    
+                    if (targetAchieved) {
+                        genBtn.textContent = `✓ ${finalScore}% ATS`;
+                        genBtn.style.background = '#22c55e';
+                    } else {
+                        genBtn.textContent = `✓ ${finalScore}% (Best)`;
+                        genBtn.style.background = '#eab308';
+                    }
                     
                     // Show download button
                     dlBtn.href = data.download_url;
                     dlBtn.style.display = 'inline-block';
                     
-                    // Display ATS score if available
-                    const atsScore = data.ats_score;
-                    if (atsScore && atsScore.score) {
-                        const scoreColor = atsScore.score >= 90 ? '#22c55e' : 
-                                          atsScore.score >= 75 ? '#eab308' : '#ef4444';
-                        const scoreLabel = atsScore.score >= 90 ? 'Excellent' :
-                                          atsScore.score >= 75 ? 'Good' : 'Needs Improvement';
-                        
-                        // Create ATS score badge
-                        const scoreHtml = `
-                            <div class="ats-score" style="
-                                display: inline-flex;
-                                align-items: center;
-                                gap: 0.5rem;
-                                background: ${scoreColor}20;
-                                border: 1px solid ${scoreColor};
-                                border-radius: 8px;
-                                padding: 0.5rem 0.75rem;
-                                margin-left: 0.5rem;
-                                font-size: 0.85rem;
-                            ">
-                                <span style="font-weight: 700; color: ${scoreColor};">${atsScore.score}%</span>
-                                <span style="color: #94a3b8;">ATS Score</span>
-                                <span style="color: ${scoreColor}; font-size: 0.75rem;">(${scoreLabel})</span>
-                            </div>
-                        `;
-                        
-                        // Insert after download button
-                        dlBtn.insertAdjacentHTML('afterend', scoreHtml);
-                        
-                        // Show detailed breakdown in message
-                        const details = atsScore.strengths ? 
-                            `Strengths: ${atsScore.strengths.slice(0,2).join(', ')}` : '';
-                        showMessage(`CV generated! ATS Score: ${atsScore.score}% (${scoreLabel}). ${details}`, 'success');
+                    // Display ATS score badge
+                    const scoreColor = finalScore >= 90 ? '#22c55e' : 
+                                      finalScore >= 75 ? '#eab308' : '#ef4444';
+                    const scoreLabel = targetAchieved ? 'Target Met!' :
+                                      finalScore >= 75 ? 'Good' : 'Needs Improvement';
+                    
+                    const iterationText = iterations > 1 ? ` (${iterations} iterations)` : '';
+                    
+                    // Create ATS score badge
+                    const scoreHtml = `
+                        <div class="ats-score" style="
+                            display: inline-flex;
+                            align-items: center;
+                            gap: 0.5rem;
+                            background: ${scoreColor}20;
+                            border: 1px solid ${scoreColor};
+                            border-radius: 8px;
+                            padding: 0.5rem 0.75rem;
+                            margin-left: 0.5rem;
+                            font-size: 0.85rem;
+                        ">
+                            <span style="font-weight: 700; color: ${scoreColor};">${finalScore}%</span>
+                            <span style="color: #94a3b8;">ATS${iterationText}</span>
+                            <span style="color: ${scoreColor}; font-size: 0.75rem;">(${scoreLabel})</span>
+                        </div>
+                    `;
+                    
+                    // Insert after download button
+                    dlBtn.insertAdjacentHTML('afterend', scoreHtml);
+                    
+                    // Show result message
+                    if (targetAchieved) {
+                        showMessage(`CV generated with ${finalScore}% ATS score. Target of 90% achieved!${iterationText}`, 'success');
                     } else {
-                        showMessage('CV generated! Click "Download CV" to save.', 'success');
+                        showMessage(`CV generated with ${finalScore}% ATS score after ${iterations} iteration(s). Best result achieved.`, 'info');
                     }
                 } else {
                     throw new Error(data.detail || 'Generation failed');
