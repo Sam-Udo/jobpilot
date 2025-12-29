@@ -232,6 +232,15 @@ class IntentParser:
         'great britain': 'United Kingdom',
     }
 
+    # UK Contract/IR35 terms (common in UK job market)
+    CONTRACT_TERMS = [
+        'outside ir35', 'inside ir35', 'ir35', 
+        'contract', 'contracts', 'contractor', 'contracting',
+        'permanent', 'perm', 'fixed term', 'ftc',
+        'day rate', 'daily rate', 'ltd', 'limited company',
+        'umbrella', 'paye'
+    ]
+    
     def parse(self, text: str) -> SearchFilters:
         """Parse natural language to search filters for UK jobs."""
         text_lower = text.lower()
@@ -255,12 +264,21 @@ class IntentParser:
         
         # Clean text to extract job title
         clean_text = text_lower
+        
+        # Remove location type keywords
         for keywords in self.LOCATION_TYPES.values():
             for kw in keywords:
                 clean_text = clean_text.replace(kw, '')
+        
+        # Remove location names
         for loc_name in self.UK_LOCATIONS.keys():
             clean_text = clean_text.replace(loc_name, '')
         
+        # Remove UK contract/IR35 terms (these are not part of job titles)
+        for term in self.CONTRACT_TERMS:
+            clean_text = clean_text.replace(term, '')
+        
+        # Standard skip words
         skip_words = ['i', 'need', 'find', 'want', 'looking', 'for', 'jobs', 'job',
                       'in', 'at', 'a', 'an', 'the', 'roles', 'role', 'positions', 'uk']
         words = clean_text.split()
