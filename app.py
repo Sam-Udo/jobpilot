@@ -1596,74 +1596,45 @@ class BrightDataJobScraper:
     
     def _filter_jobs_by_search(self, jobs: List[Job], search_title: str, filters: 'SearchFilters') -> List[Job]:
         """
-        Filter jobs to only include those that match the user's search terms.
-        Smart filtering: relaxes criteria if too strict.
+        Light filtering of job results.
+        
+        IMPORTANT: Job sites already filtered by our search query (including IR35).
+        Job preview cards often don't contain keywords like "IR35" - that's in the full description.
+        So we only do basic title matching here.
         """
         if not jobs:
             return jobs
         
-        # If we only have a few jobs, don't filter - show what we have
-        if len(jobs) <= 5:
-            logger.info(f"Only {len(jobs)} jobs found, skipping filter to show all results")
-            return jobs
-        
-        # Extract keywords from search
+        # Extract keywords from search (just the job title part)
         search_lower = search_title.lower()
         
-        # Split into individual keywords
+        # Core keywords - remove modifiers that won't appear in job titles
+        skip_modifiers = ['ir35', 'inside', 'outside', 'contract', 'contracts', 
+                         'contractor', 'remote', 'hybrid', 'permanent', 'perm']
         keywords = [w.strip() for w in search_lower.split() if len(w.strip()) > 2]
+        core_keywords = [k for k in keywords if k not in skip_modifiers]
         
-        # Check for IR35 specifically
-        has_ir35_search = 'ir35' in search_lower
-        
-        # Check for contract type
-        has_contract_search = 'contract' in search_lower
-        
-        # Core keywords (job title words, not modifiers)
-        core_keywords = [k for k in keywords if k not in ['ir35', 'inside', 'outside', 'contract', 'contracts', 'remote']]
+        # If no core keywords (e.g., user just searched "IR35 contract"), return all
+        if not core_keywords:
+            logger.info("No core job title keywords to filter by, returning all jobs")
+            return jobs
         
         filtered = []
         for job in jobs:
-            job_text = f"{job.title} {job.description} {job.company}".lower()
+            job_text = f"{job.title} {job.description}".lower()
             
-            # Title match: at least ONE core keyword must be present
-            if core_keywords:
-                title_match = any(k in job_text for k in core_keywords)
-            else:
-                title_match = True
-            
-            # IR35 match: if searched, prefer IR35 jobs but don't require
-            # Also match "outside ir35", "inside ir35", or just "contract" as alternatives
-            if has_ir35_search:
-                ir35_match = ('ir35' in job_text or 'contract' in job_text or 
-                             'contractor' in job_text or 'freelance' in job_text)
-            else:
-                ir35_match = True
-            
-            # Contract match: relaxed
-            if has_contract_search:
-                contract_match = ('contract' in job_text or 'contractor' in job_text or 
-                                 'freelance' in job_text or 'ir35' in job_text)
-            else:
-                contract_match = True
-            
-            # Remote match: if specified
-            if filters.location_type == 'remote':
-                remote_match = ('remote' in job_text or 'work from home' in job_text or 
-                               'wfh' in job_text or 'hybrid' in job_text or 
-                               'home based' in job_text)
-            else:
-                remote_match = True
-            
-            # Job must pass filters
-            if title_match and ir35_match and contract_match and remote_match:
+            # Title match: at least ONE core keyword must be present in job title/description
+            # e.g., "data" or "engineer" for "data engineer" search
+            if any(k in job_text for k in core_keywords):
                 filtered.append(job)
         
-        # If filtering removed too many jobs, return more results
-        if len(filtered) < 3 and len(jobs) > 10:
-            logger.info(f"Filter too strict ({len(filtered)} results), relaxing to title-only filter")
-            # Fall back to just title matching
-            filtered = [j for j in jobs if any(k in f"{j.title} {j.description}".lower() for k in core_keywords)] if core_keywords else jobs
+        # If we filtered out too many, relax the filter
+        if len(filtered) == 0 and len(jobs) > 0:
+            logger.info("Filter too strict, returning all jobs from search")
+            return jobs
+        
+        if len(filtered) < len(jobs):
+            logger.info(f"Filtered {len(jobs)} → {len(filtered)} jobs (removed non-matching titles)")
         
         return filtered
 
