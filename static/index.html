@@ -662,10 +662,11 @@
 
             try {
                 const query = document.getElementById('search-input').value.trim();
+                const fastMode = document.getElementById('fast-mode').checked;
                 const res = await fetch('/api/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query, user_id: userId, page: currentPage })
+                    body: JSON.stringify({ query, user_id: userId, page: currentPage, fast_mode: fastMode })
                 });
 
                 const data = await res.json();
