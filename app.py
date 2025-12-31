@@ -171,7 +171,7 @@ cv_analyzer = CVFormatAnalyzer()
 # =============================================================================
 
 class IntentParser:
-    """Parse natural language to extract job search intent for UK jobs."""
+    """Parse natural language to extract job search intent for US, UK, and KSA jobs."""
     
     LOCATION_TYPES = {
         'remote': ['remote', 'work from home', 'wfh', 'fully remote'],
@@ -179,83 +179,92 @@ class IntentParser:
         'onsite': ['onsite', 'on-site', 'in office', 'on site']
     }
     
-    # UK Cities, Regions, and Areas (comprehensive list)
+    # US States and Cities
+    US_LOCATIONS = {
+        # States
+        'texas': 'Texas', 'california': 'California', 'new york': 'New York',
+        'florida': 'Florida', 'illinois': 'Illinois', 'pennsylvania': 'Pennsylvania',
+        'ohio': 'Ohio', 'georgia': 'Georgia', 'north carolina': 'North Carolina',
+        'michigan': 'Michigan', 'new jersey': 'New Jersey', 'virginia': 'Virginia',
+        'washington': 'Washington', 'arizona': 'Arizona', 'massachusetts': 'Massachusetts',
+        'tennessee': 'Tennessee', 'indiana': 'Indiana', 'missouri': 'Missouri',
+        'maryland': 'Maryland', 'wisconsin': 'Wisconsin', 'colorado': 'Colorado',
+        'minnesota': 'Minnesota', 'south carolina': 'South Carolina', 'alabama': 'Alabama',
+        'louisiana': 'Louisiana', 'kentucky': 'Kentucky', 'oregon': 'Oregon',
+        'oklahoma': 'Oklahoma', 'connecticut': 'Connecticut', 'utah': 'Utah',
+        'iowa': 'Iowa', 'nevada': 'Nevada', 'arkansas': 'Arkansas', 'mississippi': 'Mississippi',
+        'kansas': 'Kansas', 'new mexico': 'New Mexico', 'nebraska': 'Nebraska',
+        'idaho': 'Idaho', 'west virginia': 'West Virginia', 'hawaii': 'Hawaii',
+        'new hampshire': 'New Hampshire', 'maine': 'Maine', 'montana': 'Montana',
+        'rhode island': 'Rhode Island', 'delaware': 'Delaware', 'south dakota': 'South Dakota',
+        'north dakota': 'North Dakota', 'alaska': 'Alaska', 'vermont': 'Vermont',
+        'wyoming': 'Wyoming',
+        # Major Cities
+        'new york city': 'New York', 'los angeles': 'California', 'chicago': 'Illinois',
+        'houston': 'Texas', 'phoenix': 'Arizona', 'philadelphia': 'Pennsylvania',
+        'san antonio': 'Texas', 'san diego': 'California', 'dallas': 'Texas',
+        'san jose': 'California', 'austin': 'Texas', 'jacksonville': 'Florida',
+        'fort worth': 'Texas', 'columbus': 'Ohio', 'charlotte': 'North Carolina',
+        'san francisco': 'California', 'indianapolis': 'Indiana', 'seattle': 'Washington',
+        'denver': 'Colorado', 'boston': 'Massachusetts', 'nashville': 'Tennessee',
+        'detroit': 'Michigan', 'portland': 'Oregon', 'las vegas': 'Nevada',
+        'atlanta': 'Georgia', 'miami': 'Florida', 'tampa': 'Florida',
+        # Country
+        'usa': 'United States', 'us': 'United States', 'united states': 'United States',
+        'america': 'United States',
+    }
+    
+    # UK Cities, Regions, and Areas
     UK_LOCATIONS = {
-        # England - Major Cities
-        'london': 'London', 'greater london': 'London',
-        'manchester': 'Manchester', 'greater manchester': 'Manchester',
-        'birmingham': 'Birmingham', 'west midlands': 'Birmingham',
-        'leeds': 'Leeds', 'bradford': 'Bradford',
-        'liverpool': 'Liverpool', 'merseyside': 'Liverpool',
-        'newcastle': 'Newcastle', 'newcastle upon tyne': 'Newcastle',
-        'sheffield': 'Sheffield', 'south yorkshire': 'Sheffield',
-        'bristol': 'Bristol', 'nottingham': 'Nottingham',
-        'leicester': 'Leicester', 'coventry': 'Coventry',
-        'hull': 'Hull', 'kingston upon hull': 'Hull',
-        'stoke': 'Stoke-on-Trent', 'stoke on trent': 'Stoke-on-Trent',
-        'wolverhampton': 'Wolverhampton', 'derby': 'Derby',
-        'southampton': 'Southampton', 'portsmouth': 'Portsmouth',
-        'plymouth': 'Plymouth', 'reading': 'Reading',
-        'luton': 'Luton', 'bolton': 'Bolton',
-        'bournemouth': 'Bournemouth', 'middlesbrough': 'Middlesbrough',
-        'sunderland': 'Sunderland', 'brighton': 'Brighton',
-        'peterborough': 'Peterborough', 'stockport': 'Stockport',
-        'slough': 'Slough', 'swindon': 'Swindon',
-        'oxford': 'Oxford', 'cambridge': 'Cambridge',
-        'york': 'York', 'norwich': 'Norwich',
-        'exeter': 'Exeter', 'gloucester': 'Gloucester',
-        'ipswich': 'Ipswich', 'cheltenham': 'Cheltenham',
-        'bath': 'Bath', 'chester': 'Chester',
-        'canterbury': 'Canterbury', 'winchester': 'Winchester',
-        'milton keynes': 'Milton Keynes', 'watford': 'Watford',
-        'woking': 'Woking', 'guildford': 'Guildford',
-        'croydon': 'Croydon', 'harrow': 'Harrow',
-        'enfield': 'Enfield', 'ealing': 'Ealing',
-        # Scotland
-        'glasgow': 'Glasgow', 'edinburgh': 'Edinburgh',
-        'aberdeen': 'Aberdeen', 'dundee': 'Dundee',
-        'inverness': 'Inverness', 'stirling': 'Stirling',
-        'perth': 'Perth', 'scotland': 'Scotland',
-        # Wales
-        'cardiff': 'Cardiff', 'swansea': 'Swansea',
-        'newport': 'Newport', 'wrexham': 'Wrexham',
-        'wales': 'Wales',
-        # Northern Ireland
-        'belfast': 'Belfast', 'derry': 'Derry',
-        'londonderry': 'Londonderry', 'northern ireland': 'Northern Ireland',
-        # Crown Dependencies
-        'isle of man': 'Isle of Man', 'douglas': 'Isle of Man',
-        'jersey': 'Jersey', 'guernsey': 'Guernsey',
-        'channel islands': 'Channel Islands',
-        # Regions
-        'east midlands': 'East Midlands', 'west midlands': 'West Midlands',
-        'east anglia': 'East Anglia', 'south east': 'South East',
-        'south west': 'South West', 'north east': 'North East',
-        'north west': 'North West', 'yorkshire': 'Yorkshire',
-        'home counties': 'Home Counties', 'midlands': 'Midlands',
-        # Countries
-        'england': 'England', 'united kingdom': 'United Kingdom',
-        'uk': 'United Kingdom', 'britain': 'United Kingdom',
-        'great britain': 'United Kingdom',
+        'london': 'London', 'manchester': 'Manchester', 'birmingham': 'Birmingham',
+        'leeds': 'Leeds', 'liverpool': 'Liverpool', 'newcastle': 'Newcastle',
+        'sheffield': 'Sheffield', 'bristol': 'Bristol', 'nottingham': 'Nottingham',
+        'leicester': 'Leicester', 'coventry': 'Coventry', 'glasgow': 'Glasgow',
+        'edinburgh': 'Edinburgh', 'cardiff': 'Cardiff', 'belfast': 'Belfast',
+        'cambridge': 'Cambridge', 'oxford': 'Oxford', 'reading': 'Reading',
+        'brighton': 'Brighton', 'southampton': 'Southampton', 'portsmouth': 'Portsmouth',
+        'scotland': 'Scotland', 'wales': 'Wales', 'northern ireland': 'Northern Ireland',
+        'isle of man': 'Isle of Man',
+        'uk': 'United Kingdom', 'united kingdom': 'United Kingdom', 'britain': 'United Kingdom',
+    }
+    
+    # KSA Cities
+    KSA_LOCATIONS = {
+        'riyadh': 'Riyadh', 'jeddah': 'Jeddah', 'mecca': 'Mecca', 'medina': 'Medina',
+        'dammam': 'Dammam', 'khobar': 'Khobar', 'dhahran': 'Dhahran', 'jubail': 'Jubail',
+        'yanbu': 'Yanbu', 'tabuk': 'Tabuk', 'taif': 'Taif', 'hail': 'Hail',
+        'saudi': 'Saudi Arabia', 'saudi arabia': 'Saudi Arabia', 'ksa': 'Saudi Arabia',
     }
 
-    # UK Contract/IR35 terms (common in UK job market)
-    # These are detected separately and added as search modifiers
+    # UK Contract/IR35 terms
     IR35_TERMS = ['outside ir35', 'inside ir35', 'ir35']
     CONTRACT_TERMS = ['contract', 'contracts', 'contractor', 'contracting',
                       'permanent', 'perm', 'fixed term', 'ftc']
     
-    def parse(self, text: str) -> SearchFilters:
-        """Parse natural language to search filters for UK jobs."""
+    def parse(self, text: str, region: str = "us") -> SearchFilters:
+        """Parse natural language to search filters. Region determines location defaults."""
         text_lower = text.lower()
         filters = SearchFilters()
+        region = region.lower()
         
-        # Detect IR35 preference (important for UK contract searches)
+        # Choose location dictionary based on region
+        if region == "us":
+            locations = self.US_LOCATIONS
+            default_location = "United States"
+        elif region == "ksa":
+            locations = self.KSA_LOCATIONS
+            default_location = "Saudi Arabia"
+        else:  # uk
+            locations = self.UK_LOCATIONS
+            default_location = "United Kingdom"
+        
+        # Detect IR35 preference (UK only)
         ir35_modifier = ""
-        for term in self.IR35_TERMS:
-            if term in text_lower:
-                ir35_modifier = term
-                break
+        if region == "uk":
+            for term in self.IR35_TERMS:
+                if term in text_lower:
+                    ir35_modifier = term
+                    break
         
         # Detect contract type
         contract_type = ""
@@ -270,15 +279,15 @@ class IntentParser:
                 filters.location_type = loc_type
                 break
         
-        # Detect UK location
-        for loc_name, loc_display in self.UK_LOCATIONS.items():
+        # Detect location from query
+        for loc_name, loc_display in locations.items():
             if loc_name in text_lower:
                 filters.location = loc_display
                 break
         
-        # Default to UK if no location specified
+        # Default based on region
         if not filters.location:
-            filters.location = "United Kingdom"
+            filters.location = default_location
         
         # Clean text to extract base job title
         clean_text = text_lower
@@ -289,7 +298,7 @@ class IntentParser:
                 clean_text = clean_text.replace(kw, '')
         
         # Remove location names
-        for loc_name in self.UK_LOCATIONS.keys():
+        for loc_name in locations.keys():
             clean_text = clean_text.replace(loc_name, '')
         
         # Remove IR35 and contract terms from job title extraction
@@ -298,19 +307,18 @@ class IntentParser:
         
         # Standard skip words
         skip_words = ['i', 'need', 'find', 'want', 'looking', 'for', 'jobs', 'job',
-                      'in', 'at', 'a', 'an', 'the', 'roles', 'role', 'positions', 'uk']
+                      'in', 'at', 'a', 'an', 'the', 'roles', 'role', 'positions', 
+                      'uk', 'us', 'usa', 'ksa', 'saudi']
         words = clean_text.split()
         title_words = [w for w in words if w not in skip_words and len(w) > 2]
         
-        # Build job title with IR35/contract modifiers
+        # Build job title with modifiers
         base_title = ' '.join(title_words).title() if title_words else "Engineer"
         
-        # Add IR35 modifier to the search (this is what users want!)
+        # Add IR35 modifier to the search (UK only)
         if ir35_modifier:
-            # e.g., "Data Engineer outside IR35" or "Data Engineer IR35"
             filters.job_titles = [f"{base_title} {ir35_modifier}"]
         elif contract_type:
-            # e.g., "Data Engineer contract"
             filters.job_titles = [f"{base_title} {contract_type}"]
         else:
             filters.job_titles = [base_title]
@@ -3321,11 +3329,12 @@ async def api_upload_cv(file: UploadFile = File(...), user_id: str = Form(...)):
 
 @app.post("/api/search")
 async def api_search(request: SearchRequest):
-    """Search for jobs - scrapes dynamically using Bright Data. Supports US and UK regions."""
+    """Search for jobs - scrapes dynamically using Bright Data. Supports US, UK, and KSA regions."""
     logger.info(f"Search: {request.query}, page={request.page}, fast_mode={request.fast_mode}, region={request.region}")
     
-    filters = intent_parser.parse(request.query)
-    filters.region = request.region  # Set region from request
+    # Pass region to parser so it uses correct location defaults
+    filters = intent_parser.parse(request.query, region=request.region)
+    filters.region = request.region  # Also set on filters for scraper
     cache_key = filters.cache_key(fast_mode=request.fast_mode)
     
     logger.info(f"NLU parsed: titles={filters.job_titles}, location={filters.location}, type={filters.location_type}, region={request.region}")
