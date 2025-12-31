@@ -561,9 +561,9 @@
             }
 
             // CLEAR PREVIOUS RESULTS immediately when starting new search
-            document.getElementById('results-grid').innerHTML = '';
+            document.getElementById('jobs-list').innerHTML = '';
             document.getElementById('results-count').textContent = '';
-            document.getElementById('pagination').innerHTML = '';
+            document.getElementById('results-section').classList.add('hidden');
             document.getElementById('download-section').classList.add('hidden');
             allJobs = [];
             currentSearchQuery = query;
