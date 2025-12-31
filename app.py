@@ -3295,7 +3295,7 @@ Now begin with Section 1: COMPREHENSIVE JD ANALYSIS.
         # Use streaming to handle long operations
         full_response = ""
         with client.messages.stream(
-            model="claude-opus-4-20250514",
+            model="claude-sonnet-4-20250514",  # Sonnet is 80% cheaper than Opus
             max_tokens=16384,
             messages=[{"role": "user", "content": full_prompt}]
         ) as stream:
@@ -3373,7 +3373,7 @@ OUTPUT ONLY THE IMPROVED CV - no explanations, just the CV content:
         
         full_response = ""
         with client.messages.stream(
-            model="claude-opus-4-20250514",
+            model="claude-sonnet-4-20250514",  # Sonnet is 80% cheaper than Opus
             max_tokens=8192,
             messages=[{"role": "user", "content": regeneration_prompt}]
         ) as stream:
@@ -4239,7 +4239,7 @@ async def api_generate_cv(request: GenerateCVRequest):
         # ATS SCORE ITERATION LOOP
         # Keep generating until we hit the minimum ATS score
         # ===================================================================
-        MAX_ITERATIONS = 3  # Maximum attempts to prevent infinite loops
+        MAX_ITERATIONS = 1  # Single generation to save costs (was 3)
         MIN_ATS_SCORE = request.min_ats_score
         
         best_cv = None
