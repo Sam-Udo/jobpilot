@@ -1,11 +1,49 @@
-# JobPilot - AI-Powered Job Application Platform
+# JobPilot - AI-Powered Job Application Platform (US + UK + KSA)
 
-JobPilot is an intelligent job search and CV optimization platform that uses Claude AI to generate tailored CVs for specific job applications.
+JobPilot is an intelligent job search and CV optimization platform that uses Claude AI to generate tailored CVs for job applications in the United States, United Kingdom, and Saudi Arabia.
+
+## Version
+
+**v3-combined** - Combined US + UK + KSA job search with ATS score iteration
 
 ## Features
 
-- **Smart Job Search**: Search across 5 major job sites (Indeed, LinkedIn, Glassdoor, Dice, ZipRecruiter)
-- **Natural Language Queries**: Search using plain English (e.g., "remote data engineer jobs in Texas")
+### Region Toggle (US, UK, or KSA)
+Switch between US, UK, and Saudi Arabia job markets with one click.
+
+### US Job Search (5 Sites)
+- Indeed (indeed.com)
+- LinkedIn
+- Glassdoor (glassdoor.com)
+- Dice (dice.com)
+- ZipRecruiter (ziprecruiter.com)
+
+### UK Job Search (7 Sites)
+- Indeed UK (uk.indeed.com)
+- LinkedIn
+- Glassdoor UK (glassdoor.co.uk)
+- Reed (reed.co.uk)
+- CV-Library (cv-library.co.uk)
+- TotalJobs (totaljobs.com)
+- Jobserve (jobserve.com)
+
+### KSA Job Search (7 Sites) - 14-day filter
+- Naukrigulf (naukrigulf.com)
+- Bayt.com (bayt.com)
+- GulfTalent (gulftalent.com)
+- LinkedIn Saudi Arabia
+- Tanqeeb (tanqeeb.com) - Job aggregator
+- Mihnati (mihnati.com) - Saudi portal
+- Recruitment Agencies (Hays, Robert Walters, Adecco)
+
+### ATS Score Iteration (NEW in V3)
+- CV generation iterates until achieving **90% ATS score** or max 3 iterations
+- Each iteration incorporates feedback from previous score
+- Shows final score and iteration count in UI
+- Will not allow download until best possible score is achieved
+
+### Other Features
+- **Natural Language Queries**: Search using plain English (e.g., "remote data engineer jobs in Texas" or "remote IR35 data engineer jobs in London")
 - **AI-Powered CV Generation**: Uses Claude Opus with the Master CV Optimisation Mega-Prompt v3.0
 - **Company Constraint Compliance**: Automatically applies Meta/Amazon/Google vocabulary constraints
 - **30-Day Filter**: Only shows jobs posted in the last 30 days
@@ -17,27 +55,29 @@ JobPilot is an intelligent job search and CV optimization platform that uses Cla
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              JOBPILOT SYSTEM                                │
+│                         JOBPILOT V3 SYSTEM                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
 
                     ┌──────────────────────────────────┐
                     │         USER INTERFACE           │
                     │    (HTML/CSS/JavaScript)         │
+                    │  - US/UK Region Toggle           │
                     │  - Search box + NLU parsing      │
                     │  - CV upload (PDF/DOCX/TXT)      │
                     │  - Job cards with actions        │
+                    │  - ATS Score display             │
                     │  - Download generated CV         │
                     └──────────────┬───────────────────┘
                                    │
                                    ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                         FASTAPI BACKEND                                     │
-│                         (app_v3.py)                                         │
+│                         (app.py)                                            │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  ENDPOINTS:                                                                 │
-│  ├─ POST /api/search         → Search jobs across all sources               │
+│  ├─ POST /api/search         → Search jobs (US or UK based on region)       │
 │  ├─ POST /api/upload-cv      → Upload and analyze base CV                   │
-│  ├─ POST /api/generate-cv    → Generate tailored CV with Claude             │
+│  ├─ POST /api/generate-cv    → Generate CV with ATS iteration (target 90%)  │
 │  └─ GET  /api/download-cv    → Download formatted CV (TXT)                  │
 └─────────────────────────────────────────────────────────────────────────────┘
                                    │
